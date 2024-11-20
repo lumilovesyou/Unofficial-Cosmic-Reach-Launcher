@@ -12,7 +12,7 @@ An unofficial instance manager and mod installer for the game [Cosmic Reach](htt
 ## Authors
 
 - [@IEatSoulsMeow](https://github.com/ieatsoulsmeow)
-- [@FelisAraneae](https://github.com/FelisAraneae)
+- [@FelisAraneae](https://github.com/lumilovesyou)
 
 
 ## Plans
