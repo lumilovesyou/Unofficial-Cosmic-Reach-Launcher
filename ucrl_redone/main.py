@@ -1,35 +1,42 @@
+import os
 import sys
+import json
 import random as ran
-import subprocess
+import subprocess # Needed for future use with launching the .jar files
 import configparser
 import darkdetect
-import crl_import as crl
 import qdarktheme
+from functools import partial
 from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import QSize, Qt, QRect, QPoint
 from PySide6.QtWidgets import *
+import crl_import as crl
 
-def update_theme():
-    crl.check_for_config()
-    dark_setting = crl.check_in_config("App Settings", "dark_mode")
-    if dark_setting == "Auto":
+runningInstances = []
+
+def updateTheme():
+#Updates theme to user's preference
+    crl.checkForConfig()
+    currentAppTheme = crl.checkInConfig("App Settings", "app_theme")
+    if currentAppTheme == "Auto":
         if darkdetect.isDark():
             qdarktheme.setup_theme()
         else:
             qdarktheme.setup_theme("light")
-    elif dark_setting == "Dark":
-        qdarktheme.setup_theme(dark_setting.lower())
+    elif currentAppTheme == "Dark":
+        qdarktheme.setup_theme(currentAppTheme.lower())
     else:
         qdarktheme.setup_theme("light")
 
-def developer_mode_widgets(visibility, self):
+def developerModeWidgets(visibility, self):
+#Toggles visibility for dev buttons
             if not visibility or visibility == "False":
-                self.relinst_button.hide()
+                self.relistButton.hide()
             else:
-                self.relinst_button.show()
+                self.relistButton.show()
 
-#Defining FlowLayout              
+#Defining FlowLayout
 class FlowLayout(QLayout):
     def __init__(self, parent=None, margin=0, spacing=-1):
         super().__init__(parent)
@@ -105,232 +112,343 @@ class FlowLayout(QLayout):
 class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-        def reload_instances(self, home_layout):
-            if home_layout is not None:
-                while home_layout.count() > 0:
-                    item = home_layout.takeAt(0)
-                    widget = item.widget()
-                    if widget is not None:
-                        widget.deleteLater()
-            print("Loading instances")
-            button_widget = QWidget()
-            button_layout = FlowLayout(button_widget)
-            list = []
-            for i in range(ran.randint(1,30)):
-                list.append("Instance " + str(i))
-            for instance in list:
-                button = QToolButton()
-                button.setText(instance)
-                icon = QIcon("assets/app_icons/ucrl_icon.png")
-                button.setIcon(icon)
-                button.setFixedSize(QSize(100, 100))
-                button.setIconSize(QSize(48, 48))
-                button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-                button_layout.addWidget(button)
-            home_layout.addWidget(button_widget)
-            add_instance = QPushButton("Add Instance")
-            add_instance.clicked.connect(self.add_instance)
-            home_layout.addWidget(add_instance)
-            edit_instances = QPushButton("Edit Instances")
-            edit_instances.clicked.connect(self.edit_instances)
-            home_layout.addWidget(edit_instances)
-            home_layout.addStretch()
-        
         ###Creating Tabs
         #Define Tabs
         self.tabs = QTabWidget(self)
-        self.home_tab = QScrollArea()
-        self.settings_tab = QScrollArea()
+        self.homeTab = QScrollArea()
+        self.settingsTab = QScrollArea()
         # Set QScrollArea to be resizable
-        self.home_tab.setWidgetResizable(True)
-        self.settings_tab.setWidgetResizable(True)
+        self.homeTab.setWidgetResizable(True)
+        self.settingsTab.setWidgetResizable(True)
         #Add tabs to window
-        self.tabs.addTab(self.home_tab, "Home")
-        self.tabs.addTab(self.settings_tab, "Settings")
+        self.tabs.addTab(self.homeTab, "Home")
+        self.tabs.addTab(self.settingsTab, "Settings")
         
         ###Modify & Defining tabs' layout
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.tabs)
         self.setLayout(layout)
-        home_layout = QtWidgets.QHBoxLayout(self.home_tab)
-        settings_layout = QtWidgets.QVBoxLayout(self.settings_tab)
-        self.home_tab.setLayout(home_layout)
-        self.settings_tab.setLayout(settings_layout)
+        self.homeLayout = QtWidgets.QHBoxLayout(self.homeTab)
+        settingsLayout = QtWidgets.QVBoxLayout(self.settingsTab)
+        self.homeTab.setLayout(self.homeLayout)
+        self.settingsTab.setLayout(settingsLayout)
         #Create content widgets
-        home_content = QWidget()
-        settings_content = QWidget()
+        homeContent = QWidget()
+        settingsContent = QWidget()
         #Set layout for content widgets
-        home_layout = QtWidgets.QVBoxLayout(home_content)
-        settings_layout = QtWidgets.QVBoxLayout(settings_content)
+        self.homeLayout = QtWidgets.QVBoxLayout(homeContent)
+        settingsLayout = QtWidgets.QVBoxLayout(settingsContent)
         #Add content widgets to scroll areas
-        self.home_tab.setWidget(home_content)
-        self.settings_tab.setWidget(settings_content)
+        self.homeTab.setWidget(homeContent)
+        self.settingsTab.setWidget(settingsContent)
         
         ###Defining Setting's Widgets
         #Labels
-        self.theme_label = QLabel(self.settings_tab)
-        self.theme_label.setText("<div style ='font-size: 18px;'><b>Application Theme</b></div>")
-        self.update_label = QLabel(self.settings_tab)
-        self.update_label.setText("<div style ='font-size: 18px;'><b>Update</b></div>")
-        self.info_label = QLabel(self.settings_tab)
-        self.info_label.setText("<div style ='font-size: 18px;'><b>Info</b></div>")
-        self.version_label = QLabel(self.settings_tab)
-        self.version_label.setText("<div style ='font-size: 13px;'>UCRL 0.0.6</div>")
-        self.authors_label = QLabel(self.settings_tab)
-        self.authors_label.setText("<div style ='font-size: 13px;'>By <a href='https://github.com/ieatsoulsmeow'>IEatSoulsMeow</a> and <a href='https://github.com/felisaraneae'>FelisAraneae</a>")
-        self.authors_label.setOpenExternalLinks(True)
-        self.github_label = QLabel(self.settings_tab)
-        self.github_label.setText("<div style ='font-size: 13px;'>Source can be found on <a href='https://github.com/FelisAraneae/Unofficial-Cosmic-Reach-Launcher'>Github</a>")
-        self.github_label.setOpenExternalLinks(True)
-        self.discord_label = QLabel(self.settings_tab)
-        self.discord_label.setText("<div style ='font-size: 13px;'>Join the unofficial <a href='https://discord.gg/jRs9q7FMSu'>Discord</a> for other Cosmic Reach launchers")
-        self.discord_label.setOpenExternalLinks(True)
-        self.developer_label = QLabel(self.settings_tab)
-        self.developer_label.setText("<div style ='font-size: 18px;'><b>Developer Settings</b></div>")
+        self.themeLabel = QLabel(self.settingsTab)
+        self.themeLabel.setText("<div style ='font-size: 18px;'><b>Application Theme</b></div>")
+        self.updateLabel = QLabel(self.settingsTab)
+        self.updateLabel.setText("<div style ='font-size: 18px;'><b>Update</b></div>")
+        self.infoLabel = QLabel(self.settingsTab)
+        self.infoLabel.setText("<div style ='font-size: 18px;'><b>Info</b></div>")
+        self.versionLabel = QLabel(self.settingsTab)
+        self.versionLabel.setText("<div style ='font-size: 13px;'>UCRL 0.0.6</div>")
+        self.authorsLabel = QLabel(self.settingsTab)
+        self.authorsLabel.setText("<div style ='font-size: 13px;'>By <a href='https://github.com/ieatsoulsmeow'>IEatSoulsMeow</a> and <a href='https://github.com/felisaraneae'>FelisAraneae</a>")
+        self.authorsLabel.setOpenExternalLinks(True)
+        self.githubLabel = QLabel(self.settingsTab)
+        self.githubLabel.setText("<div style ='font-size: 13px;'>Source can be found on <a href='https://github.com/FelisAraneae/Unofficial-Cosmic-Reach-Launcher'>Github</a>")
+        self.githubLabel.setOpenExternalLinks(True)
+        self.discordLabel = QLabel(self.settingsTab)
+        self.discordLabel.setText("<div style ='font-size: 13px;'>Join the unofficial <a href='https://discord.gg/jRs9q7FMSu'>Discord</a> for other Cosmic Reach launchers")
+        self.discordLabel.setOpenExternalLinks(True)
+        self.developerLabel = QLabel(self.settingsTab)
+        self.developerLabel.setText("<div style ='font-size: 18px;'><b>Developer Settings</b></div>")
         #QComboBox
-        self.theme_dropdown = QComboBox()
-        dropdown_fill = ["Dark", "Light", "Auto"]
-        self.theme_dropdown.addItems(dropdown_fill)
-        self.theme_dropdown.currentIndexChanged.connect(self.update_theme_combo_box)
-        self.theme_dropdown.setCurrentIndex((dropdown_fill).index(crl.check_in_config("App Settings", "dark_mode")))
+        self.themeDropdown = QComboBox()
+        dropdownFill = ["Dark", "Light", "Auto"]
+        self.themeDropdown.addItems(dropdownFill)
+        self.themeDropdown.currentIndexChanged.connect(self.updateThemeComboBox)
+        self.themeDropdown.setCurrentIndex((dropdownFill).index(crl.checkInConfig("App Settings", "app_theme")))
         #Buttons
-        self.update_button = QPushButton("Update Application")
-        self.update_button.setIcon(QIcon("assets/button_icons/update_darkmode.svg"))
-        self.update_button.clicked.connect(self.magic)
+        self.updateButton = QPushButton("Update Application")
+        self.updateButton.setIcon(QIcon("assets/button_icons/update_darkmode.svg"))
+        self.updateButton.clicked.connect(self.magic)
         #Buttons
-        self.relinst_button = QPushButton("Reload Instances")
-        self.relinst_button.clicked.connect(lambda: reload_instances(self, home_layout))
+        self.relistButton = QPushButton("Reload Instances")
+        self.relistButton.clicked.connect(lambda: self.reloadInstances(self, self.homeLayout))
         #Toggle
-        self.developer_toggle = QPushButton("Developer Mode: ", self)
-        self.developer_toggle.setCheckable(True)
-        self.developer_toggle.setChecked(True)
-        self.developer_toggle.clicked.connect(self.toggle)
-        if crl.check_in_config("App Settings", "dev_mode") == "True":
-            self.developer_toggle.setText("Developer Mode: Enabled")
-            self.developer_toggle.setStyleSheet("QPushButton {background-color:#43904b; color:#dfdfdf}")
+        self.developerToggle = QPushButton("Developer Mode: ", self)
+        self.developerToggle.setCheckable(True)
+        self.developerToggle.setChecked(True)
+        self.developerToggle.clicked.connect(self.toggleDeveloper)
+        if crl.checkInConfig("App Settings", "dev_mode") == "True":
+            self.developerToggle.setText("Developer Mode: Enabled")
+            self.developerToggle.setStyleSheet("QPushButton {background-color:#43904b; color:#dfdfdf}")
         else:
-            self.developer_toggle.setChecked(False)
-            self.developer_toggle.setText("Developer Mode: False")
-            self.developer_toggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
+            self.developerToggle.setChecked(False)
+            self.developerToggle.setText("Developer Mode: False")
+            self.developerToggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
         
         # Adding Widgets to Settings
-        settings_layout.addWidget(self.theme_label)
-        settings_layout.addWidget(self.theme_dropdown)
-        settings_layout.addSpacing(35)
-        settings_layout.addWidget(self.update_label)
-        settings_layout.addWidget(self.update_button)
-        settings_layout.addSpacing(35)
-        settings_layout.addWidget(self.info_label)
-        settings_layout.addWidget(self.version_label)
-        settings_layout.addWidget(self.authors_label)
-        settings_layout.addWidget(self.github_label)
-        settings_layout.addWidget(self.discord_label)
-        settings_layout.addSpacing(70)
-        settings_layout.addWidget(self.developer_label)
-        settings_layout.addWidget(self.developer_toggle)
-        settings_layout.addWidget(self.relinst_button)
-        settings_layout.addStretch()
+        settingsLayout.addWidget(self.themeLabel)
+        settingsLayout.addWidget(self.themeDropdown)
+        settingsLayout.addSpacing(35)
+        settingsLayout.addWidget(self.updateLabel)
+        settingsLayout.addWidget(self.updateButton)
+        settingsLayout.addSpacing(35)
+        settingsLayout.addWidget(self.infoLabel)
+        settingsLayout.addWidget(self.versionLabel)
+        settingsLayout.addWidget(self.authorsLabel)
+        settingsLayout.addWidget(self.githubLabel)
+        settingsLayout.addWidget(self.discordLabel)
+        settingsLayout.addSpacing(70)
+        settingsLayout.addWidget(self.developerLabel)
+        settingsLayout.addWidget(self.developerToggle)
+        settingsLayout.addWidget(self.relistButton)
+        settingsLayout.addStretch()
         
-        ### Afterwards
-        developer_mode_widgets(crl.check_in_config("App Settings", "dev_mode"), self)
-        reload_instances(self, home_layout)
+        #Hides developer settings
+        developerModeWidgets(crl.checkInConfig("App Settings", "dev_mode"), self)
+        self.reloadInstances(self.homeLayout)
+        
+    def reloadInstances(self, homeLayout):
+        print("Reloading instances!")
+        #Updates instances displayed
+        #Deletes current instance buttons
+        if homeLayout is not None:
+            while homeLayout.count() > 0:
+                item = homeLayout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+        #Defines button
+        buttonWidget = QWidget()
+        buttonLayout = FlowLayout(buttonWidget)
+        #List read from
+        list = []
+        #The actual reading of instances
+        instancesPath = "instances"
+        ##Checking if path exists
+        crl.checkDirValidity(instancesPath)
+        ##
+        #Checks if the instances path exists and if it's a directory
+        if os.path.exists(instancesPath) and os.path.isdir(instancesPath):
+            #Loops for each file in that path
+            for instanceName in os.listdir(instancesPath):
+                instancePath = os.path.join(instancesPath, instanceName)
+                #Checks if the instance is a folder and isn't macOS's DS_Store file
+                if os.path.isdir(instancePath) and instancePath != ".DS_Store":
+                    #Makes the instance a button
+                    instanceButton = QToolButton()
+                    instanceButton.setText(instanceName)
+                    #Sets the icon
+                    iconPath = os.path.join(instancePath, "icon.png")
+                    print(str(os.path.isfile(iconPath)) + " - " + instancePath)
+                    if os.path.isfile(iconPath):
+                        icon = QIcon(iconPath)
+                    else:
+                        icon = QIcon("assets/app_icons/ucrl_icon.png")
+                    instanceButton.setIcon(icon)
+                    instanceButton.setFixedSize(QSize(100, 100))
+                    instanceButton.setIconSize(QSize(48, 48))
+                    instanceButton.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+                    #Checks if instance is running
+                    instanceButton.setStyleSheet("border-radius: 10px;")
+                    if instanceName in runningInstances:
+                        instanceButton.setStyleSheet("background-color: #9043437d;")
+                    
+                    #Button clicked events
+                    instanceButton.clicked.connect(partial(self.launchInstance, instanceName, instanceButton))
+                    instanceButton.setContextMenuPolicy(Qt.CustomContextMenu)
+                    instanceButton.customContextMenuRequested.connect(self.showInstanceContextMenu)
+                    
+                    # Add button to layout
+                    buttonLayout.addWidget(instanceButton)
+        homeLayout.addWidget(buttonWidget)
+        #Adds "Add Instance" button
+        addInstance = QPushButton("Add Instance")
+        addInstance.clicked.connect(self.addInstance)
+        homeLayout.addWidget(addInstance)
+        #Adds "Edit Instances" button
+        editInstances = QPushButton("Edit Instances")
+        editInstances.clicked.connect(self.editInstances)
+        homeLayout.addWidget(editInstances)
+
+        homeLayout.addStretch()
+        
+    def launchInstance(self, instanceName, senderButton):
+        global runningInstances
+        #Gets the button that called
+        #Handles the instance launch
+        print(f"Launching instance: {instanceName}")
+        filePath = "instances/" + instanceName + "/about.json"
+        if os.path.exists(filePath):
+        #Checks if file exists
+            if not instanceName in runningInstances:
+                instanceVersion = json.load(open(filePath, "r"))
+                print(instanceVersion["version"])
+                check = crl.checkForVersion(instanceVersion["version"])
+                if check == True:
+                    senderButton.setStyleSheet("border-radius: 10px; background-color: #9043437d;")
+                    print("Can run version!")
+                    PID = crl.runVersion(str(instanceVersion["version"]), "placeholder", "placeholder", "placeholder")
+                    runningInstances.append(instanceName)
+                else:
+                    print(check)
+            else:
+                print(f"Already running {instanceName}")
+                
+    def showInstanceContextMenu(self, pos):
+        # Identify the button that triggered the context menu
+        senderButton = self.sender()
+        print(f"Sender {senderButton}")
+
+        # Create the right-click menu for the instance button
+        menu = QMenu(self)
+
+        # Define the QMenu buttons
+        editAction = menu.addAction("Edit Instance")
+        editAction.triggered.connect(lambda: self.editInstance(senderButton))
+        ssAction = menu.addAction("Stop Instance" if True else "Start Instance")  # Toggle based on instance status
+        ssAction.triggered.connect(lambda: self.editInstance(senderButton))
+        reloadAction = menu.addAction("Reload Instances")
+        reloadAction.triggered.connect(lambda: self.reloadInstances(self.homeLayout))
+
+        # Show the QMenu at the cursor position, relative to the sender button
+        if senderButton:
+            menu.exec(senderButton.mapToGlobal(pos))
         
     @QtCore.Slot()
+    #Test
     def magic(self):
         print("working!")
 
     @QtCore.Slot()
-    def toggle(self):
-        if self.developer_toggle.isChecked():
-            self.developer_toggle.setStyleSheet("QPushButton {background-color:#43904b; color:#dfdfdf}")
-            self.developer_toggle.setText("Developer Mode: Enabled")
+    #Developer mode toggle & button colour update
+    def toggleDeveloper(self):
+        if self.developerToggle.isChecked():
+        #Developer mode enabled
+            self.developerToggle.setStyleSheet("QPushButton {background-color:#43904b; color:#dfdfdf}")
+            self.developerToggle.setText("Developer Mode: Enabled")
         else:
-            self.developer_toggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
-            self.developer_toggle.setText("Developer Mode: Disabled")
-        crl.update_in_config("App Settings", "dev_mode", str(self.developer_toggle.isChecked()))
-        developer_mode_widgets(self.developer_toggle.isChecked(), self)
+        #Developer mode disabled
+            self.developerToggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
+            self.developerToggle.setText("Developer Mode: Disabled")
+        #Updates in config and reloads developer mode widgets
+        crl.updateInConfig("App Settings", "dev_mode", str(self.developerToggle.isChecked()))
+        developerModeWidgets(self.developerToggle.isChecked(), self)
 
     @QtCore.Slot(int)
-    def update_theme_combo_box(self, value):
-        crl.update_in_config("App Settings", "dark_mode", ["Dark", "Light", "Auto"][value])
-        update_theme()
+    #Updates theme when user selects a different one
+    def updateThemeComboBox(self, value):
+        crl.updateInConfig("App Settings", "app_theme", ["Dark", "Light", "Auto"][value])
+        updateTheme()
 
     @QtCore.Slot()
-    def edit_instances(self):
-        self.edit_instance = QMainWindow()
-        self.edit_instance.setWindowTitle("New Window")
-        self.edit_instance.resize(300, 200)
+    #Opens a new test window
+    def editInstances(self):
+        self.editInstance = QMainWindow()
+        self.editInstance.setWindowTitle("New Window")
+        self.editInstance.resize(300, 200)
         layout = QVBoxLayout()
-        label = QLabel("This is a new window", self.edit_instance)
-        central_widget = QWidget()
-        central_widget.setLayout(layout)
+        label = QLabel("This is a new window", self.editInstance)
+        centralWidget = QWidget()
+        centralWidget.setLayout(layout)
         layout.addWidget(label)
-        self.edit_instance.setCentralWidget(central_widget)
-        self.edit_instance.show()
+        self.editInstance.setCentralWidget(centralWidget)
+        self.editInstance.show()
 
     @QtCore.Slot()
-    def add_instance(self):
+    def addInstance(self):
         #Defining Window
-        self.new_instance = QMainWindow()
-        self.new_instance.setWindowTitle("New Instance")
-        self.new_instance.setMinimumSize(500, 300)
-        layout = FlowLayout()
+        self.newInstance = QMainWindow()
+        self.newInstance.setWindowTitle("New Instance")
+        self.newInstance.setMinimumSize(530, 300)
+        self.newInstance.setMaximumSize(530, 300)
+        layout = QGridLayout()
+        layout.setAlignment(Qt.AlignTop)
 
         #Defining Icon
-        self.icon_label = QLabel(self.new_instance)
+        self.iconLabel = QLabel(self.newInstance)
         pixmap = QPixmap("assets/app_icons/ucrl_icon.png")
-        scaled_pixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.icon_label.setPixmap(scaled_pixmap)
-        self.icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.icon_label)
+        scaledPixmap = pixmap.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.iconLabel.setPixmap(scaledPixmap)
+        self.iconLabel.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.iconLabel, 0, 0, 1, 1)
 
         #Defining LineEdits
-        self.instance_name = QLineEdit(self.new_instance)
-        self.instance_name.setText("New Instance")
-        self.instance_name.setMinimumWidth(360)
-        layout.addWidget(self.instance_name)
+        self.instanceName = QLineEdit(self.newInstance)
+        self.instanceName.setText("New Instance")
+        self.instanceName.setMinimumWidth(360)
+        layout.addWidget(self.instanceName, 0, 1, 1, 3)
         
+        self.iconPathEdit = QLineEdit(self.newInstance)
+        self.iconPathEdit.setText("assets/app_icons/ucrl_icon.png")
+        self.iconPathEdit.setMinimumWidth(365)
+        layout.addWidget(self.iconPathEdit, 1, 0, 1, 2)
+
+        #Defining QComboBox
+        self.loader = QComboBox()
+        self.loader.addItems(["Vanilla", "Quilt", "Fabric", "Puzzle"])
+        layout.addWidget(self.loader, 2, 0, 1, 1)
         
-        self.icon_path_edit = QLineEdit(self.new_instance)
-        self.icon_path_edit.setText("assets/app_icons/ucrl_icon.png")
-        self.icon_path_edit.setMinimumWidth(266)
-        layout.addWidget(self.icon_path_edit)
+        fill = ["0.1.46"]
+        self.version = QComboBox()
+        self.version.addItems(fill)
+        layout.addWidget(self.version, 2, 1, 1, 3)
 
         #Defining PushButton
-        self.select_icon_button = QPushButton("Select Icon", self.new_instance)
-        self.select_icon_button.clicked.connect(self.select_icon)
-        layout.addWidget(self.select_icon_button)
+        self.selectIconButton = QPushButton("Select Icon", self.newInstance)
+        self.selectIconButton.clicked.connect(self.selectIcon)
+        layout.addWidget(self.selectIconButton, 1, 3, 1, 1)
+        
+        self.finalizeInstanceButton = QPushButton("Create Instance")
+        self.finalizeInstanceButton.clicked.connect(lambda: self.createInstance( self.loader.currentText(), self.version.currentText(), self.instanceName.text(), self.iconPathEdit.text()))
+        layout.addWidget(self.finalizeInstanceButton, 3, 1, 1, 2)
 
         #Setting Layout
-        central_widget = QWidget()
-        central_widget.setLayout(layout)
-        self.new_instance.setCentralWidget(central_widget)
-        central_widget.setContentsMargins(10, 10, 10, 10)
-        self.new_instance.show()
-
+        centralWidget = QWidget()
+        centralWidget.setLayout(layout)
+        self.newInstance.setCentralWidget(centralWidget)
+        centralWidget.setContentsMargins(10, 10, 10, 10)
+        self.newInstance.show()
         
     @QtCore.Slot()
-    def select_icon(self):
-        file_path, _ = crl.open_dialog("Select Icon", "Images (*.png *.xpm *.jpg)", self)
-        if file_path:
-            self.icon_path_edit.setText(file_path)
-            pixmap = QPixmap(file_path)
-            scaled_pixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.icon_label.setPixmap(scaled_pixmap)
+    def selectIcon(self):
+        filePath, _ = crl.openDialog("Select Icon", "Images (*.png *.xpm *.jpg)", self)
+        if filePath:
+            self.iconPathEdit.setText(filePath)
+            pixmap = QPixmap(filePath)
+            scaledPixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.iconLabel.setPixmap(scaledPixmap)
+            
+    @QtCore.Slot(str, str, str, str)
+    def createInstance(self, loader, version, name, icon):
+        crl.createFolder("instances")
+        crl.createFolder("instances/" + name)
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
-    update_theme()
+    updateTheme()
     
     window = MyWidget()
     window.resize(800, 600)
     window.setMinimumSize(420, 260)
-    if crl.check_os():
+    #Checks and creates files
+    crl.checkDirValidity("instances")
+    crl.checkDirValidity("meta/versions")
+    #Sets window title based on OS
+    if crl.checkOs():
+        #macOs
         window.setWindowTitle("Unofficial Cosmic Reach Launcher - macOS")
-        window.setWindowIcon(QIcon("assets/ucrl_icon.png"))
+        window.setWindowIcon(QIcon("assets/app_icons/icon.icns"))
+        tray = QSystemTrayIcon()
+        tray.setIcon(QIcon("assets/app_icons/icon.icns"))
+        tray.setVisible(True)
+        print()
     else:
+        #Windows
         window.setWindowTitle("Unofficial Cosmic Reach Launcher - Windows")
-        window.setWindowIcon(QIcon("assets/ucrl_icon.icns"))
+        window.setWindowIcon(QIcon("assets/app_icons/ucrl_icon.png"))
     window.show()
-
     sys.exit(app.exec())
