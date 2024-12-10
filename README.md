@@ -17,10 +17,10 @@ An unofficial instance manager and mod installer for the game [Cosmic Reach](htt
 
 ## Plans
 
-- Functioning instances
+- ~~Functioning instances~~
 - Instance editor
-- Stored game versions
+- ~~Stored game versions~~
 - Auto-downloaded versions
 - App auto-updating
 - More/custom themes
-- Optimised code
+- Optimised code (in-progress)
