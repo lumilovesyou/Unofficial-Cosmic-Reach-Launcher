@@ -1,0 +1,8 @@
+{
+    "version": "0.3.6",
+    "type": "vanilla",
+    "file": "Cosmic-Reach-0.3.6",
+    "keys": {
+        "ITCHIO_API_KEY": "i need to make a way to auto-remove this before uploading to github"
+    }
+}

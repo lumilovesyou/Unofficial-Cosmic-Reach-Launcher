@@ -18,9 +18,10 @@ An unofficial instance manager and mod installer for the game [Cosmic Reach](htt
 ## Plans
 
 - ~~Functioning instances~~
-- Instance editor
 - ~~Stored game versions~~
+- Optimised code (in-progress)
+- More/custom themes
+- Password-protected Itch Key
+- Instance editor
 - Auto-downloaded versions
 - App auto-updating
-- More/custom themes
-- Optimised code (in-progress)
