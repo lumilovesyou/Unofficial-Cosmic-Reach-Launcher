@@ -1,15 +1,17 @@
 import os
 import json
 import subprocess
-from . import instance_management
+import random as ran
+from . import instance_management, file_management
+from .logs import log
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
 def checkForVersion(version):
     file = f"meta/versions/{version}/about.json"
-    print(file)
-    print(os.path.exists(file))
+    log(file)
+    log(os.path.exists(file))
     try:
         with open(file, "r") as f:
             file_loaded = json.load(f)
@@ -38,32 +40,35 @@ def runVersion (version, keys, type, instance_ID):
         env=env
     )
     
-    print(f"Subprocess started with PID {process.pid}")
+    log(f"Subprocess started with PID {process.pid}")
     return(process.pid)
 
 #Higher-level functions
 def launchInstance(self, instanceName, senderButton):
         #Gets the button that called
         #Handles the instance launch
-        print(f"Launching instance: {instanceName}")
+        log(f"Launching instance: {instanceName}", f"instances/{instanceName}/logs")
         filePath = "instances/" + instanceName + "/about.json"
         if os.path.exists(filePath):
         #Checks if file exists
             if not instanceName in self.runningInstances:
                 instanceVersion = json.load(open(filePath, "r"))
-                print(instanceVersion["version"])
+                log(instanceVersion["version"])
                 check = instance_management.checkForVersion(instanceVersion["version"])
                 if check == True:
                     senderButton.setStyleSheet("border-radius: 10px; background-color: #9043437d;")
-                    print("Can run version!")
+                    log("Can run version!")
                     PID = instance_management.runVersion(str(instanceVersion["version"]), "placeholder", "placeholder", "placeholder")
                     self.runningInstances.append(instanceName)
                 else:
-                    print(check)
+                    log(check)
             else:
-                print(f"Already running {instanceName}")
+                log(f"Already running {instanceName}")
                  
 def addInstance(self):
+    #Checking if instance folder exists
+    file_management.checkDirValidity("/instances")
+    
     #Defining Window
     self.newInstance = QMainWindow()
     self.newInstance.setWindowTitle("New Instance")
@@ -82,7 +87,15 @@ def addInstance(self):
 
     #Defining LineEdits
     self.instanceName = QLineEdit(self.newInstance)
-    self.instanceName.setText("New Instance")
+    instanceName = "New Instance"
+    for i in range(1, 100):
+        if file_management.checkForDir(f"instances/{instanceName}"):
+            instanceName = f"New Instance ({i})"
+        elif i == 100:
+            instanceName = ran.randint(1, 10000000)
+        else:
+            break
+    self.instanceName.setText(instanceName)
     self.instanceName.setMinimumWidth(360)
     layout.addWidget(self.instanceName, 0, 1, 1, 3)
     

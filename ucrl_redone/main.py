@@ -1,29 +1,79 @@
 import sys
+import traceback
 from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import *
 from assets.app_files import config, developer
+from assets.app_files.logs import prepareLogs, log, passSelf
 from assets.app_files import file_management
 from assets.app_files import instance_management
 from assets.app_files import system
 from assets.app_files import instance_ui_management
 
+prepareLogs()
+
+class LogReaderThread(QThread):
+    #Sends the updated log to the main thread
+    logUpdated = Signal(str)
+
+    def run(self):
+        #Reads the log file in a separate thread
+        try:
+            with open("logs/latest.log", "r") as file:
+                text = file.read()
+                self.logUpdated.emit(text)
+        except Exception as e:
+            self.logUpdated.emit(f"Error reading log file: {e}")
+        print("working")
+
+def customExceptHook(type, value, tb):
+    formatted_traceback = ''.join(traceback.format_exception(type, value, tb)) #Tb stands for Traceback
+    log(f"Unhandled exception:\nType: {type.__name__}\nValue: {value}\nTraceback:\n{formatted_traceback}")
+    
+    error_handling_mode = config.checkInConfig("App Settings", "error_handling_mode")
+    log(f"Error Handling Mode: {error_handling_mode}")
+    
+    if error_handling_mode == "Shutdown":
+        #Shuts down the application
+        QtWidgets.QApplication.quit()
+        sys.exit(1)
+    
+    elif error_handling_mode == "Alert":
+        #Shows an error dialog
+        QtWidgets.QMessageBox.warning(None, "Error", f"An unhandled exception occurred:\n{value}\n\nPlease check the logs.")
+    
+    #Lets the app keep running
+    else:
+        #Shows an error dialog
+        pass
+    
+sys.excepthook = customExceptHook
+
 class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
+        #Sets up thread for logs
+        self.logUpdateThread = LogReaderThread()
+        self.logUpdateThread.logUpdated.connect(self.updateLogs)
+        
         self.runningInstances = []
+        
         ###Creating Tabs
         #Define Tabs
         self.tabs = QTabWidget(self)
+        self.tabs.currentChanged.connect(self.onTabChanged) #Sends signal when tab changes
         self.homeTab = QScrollArea()
         self.settingsTab = QScrollArea()
+        self.logTab = QScrollArea()
         # Set QScrollArea to be resizable
         self.homeTab.setWidgetResizable(True)
         self.settingsTab.setWidgetResizable(True)
+        self.logTab.setWidgetResizable(True)
         #Add tabs to window
         self.tabs.addTab(self.homeTab, "Home")
         self.tabs.addTab(self.settingsTab, "Settings")
+        self.tabs.addTab(self.logTab, "Logs")
         
         ###Modify & Defining tabs' layout
         layout = QtWidgets.QVBoxLayout(self)
@@ -31,14 +81,17 @@ class MyWidget(QtWidgets.QWidget):
         self.setLayout(layout)
         self.homeLayout = QtWidgets.QHBoxLayout(self.homeTab)
         settingsLayout = QtWidgets.QVBoxLayout(self.settingsTab)
+        logLayout = QtWidgets.QVBoxLayout(self.logTab)
         self.homeTab.setLayout(self.homeLayout)
         self.settingsTab.setLayout(settingsLayout)
+        self.logTab.setLayout(logLayout)
         #Create content widgets
         homeContent = QWidget()
         settingsContent = QWidget()
+        logContent = QWidget()
         #Set layout for content widgets
         self.homeLayout = QtWidgets.QVBoxLayout(homeContent)
-        settingsLayout = QtWidgets.QVBoxLayout(settingsContent)
+        self.logTab = QtWidgets.QVBoxLayout(logContent)
         #Add content widgets to scroll areas
         self.homeTab.setWidget(homeContent)
         self.settingsTab.setWidget(settingsContent)
@@ -64,12 +117,19 @@ class MyWidget(QtWidgets.QWidget):
         self.discordLabel.setOpenExternalLinks(True)
         self.developerLabel = QLabel(self.settingsTab)
         self.developerLabel.setText("<div style ='font-size: 18px;'><b>Developer Settings</b></div>")
-        #QComboBox
+        self.errorModeLabel = QLabel(self.settingsTab)
+        self.errorModeLabel.setText("Application Error Mode")
+        #QComboBoxes
         self.themeDropdown = QComboBox()
         dropdownFill = ["Dark", "Light", "Auto"]
         self.themeDropdown.addItems(dropdownFill)
         self.themeDropdown.currentIndexChanged.connect(self.updateThemeComboBox)
         self.themeDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "app_theme")))
+        self.errorDropdown = QComboBox()
+        dropdownFill = ["Shutdown", "Alert", "Continue"]
+        self.errorDropdown.addItems(dropdownFill)
+        self.errorDropdown.currentIndexChanged.connect(self.updateErrorComboBox)
+        self.errorDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "error_handling_mode")))
         #Buttons
         self.updateButton = QPushButton("Update Application")
         self.updateButton.setIcon(QIcon("assets/button_icons/update_darkmode.svg"))
@@ -89,8 +149,11 @@ class MyWidget(QtWidgets.QWidget):
             self.developerToggle.setChecked(False)
             self.developerToggle.setText("Developer Mode: False")
             self.developerToggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
+        #Text Areas
+        self.logTextArea = QTextEdit("Testing Testing 1... 2... 3...")
+        self.logTextArea.setReadOnly(True)
         
-        # Adding Widgets to Settings
+        #Adding Widgets to Settings
         settingsLayout.addWidget(self.themeLabel)
         settingsLayout.addWidget(self.themeDropdown)
         settingsLayout.addSpacing(35)
@@ -105,18 +168,25 @@ class MyWidget(QtWidgets.QWidget):
         settingsLayout.addSpacing(70)
         settingsLayout.addWidget(self.developerLabel)
         settingsLayout.addWidget(self.developerToggle)
+        settingsLayout.addWidget(self.errorModeLabel)
+        settingsLayout.addWidget(self.errorDropdown)
         settingsLayout.addWidget(self.relistButton)
         settingsLayout.addStretch()
+        
+        #Adding Widgets to Log
+        logLayout.addWidget(self.logTextArea)
         
         #Hides developer settings
         developer.developerModeWidgets(config.checkInConfig("App Settings", "dev_mode"), self)
         instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances)
+        
+        passSelf(self)
     
     # I tried to move this to instance_ui_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
     def showInstanceContextMenu(self, pos):
         # Identify the button that triggered the context menu
         senderButton = self.sender()
-        print(f"Sender {senderButton}")
+        log(f"Sender {senderButton}")
 
         # Create the right-click menu for the instance button
         menu = QMenu(self)
@@ -132,10 +202,19 @@ class MyWidget(QtWidgets.QWidget):
         # Show the QMenu at the cursor position, relative to the sender button
         if senderButton:
             menu.exec(senderButton.mapToGlobal(pos))
+    
+    ### Logs related stuff     
+    def updateLogs(self, text):
+        #Updates the log text
+        self.logTextArea.setText(text)
+        
+    def onTabChanged(self, index):
+        if self.tabs.tabText(index) == "Logs":
+            self.logUpdateThread.start() #Starts the thread to update logs
 
     @QtCore.Slot()
     def magic(self):
-        print("Magic!")
+        log("Magic!")
 
     @QtCore.Slot()
     #Developer mode toggle & button colour update
@@ -147,6 +226,10 @@ class MyWidget(QtWidgets.QWidget):
     def updateThemeComboBox(self, value):
         config.updateInConfig("App Settings", "app_theme", ["Dark", "Light", "Auto"][value])
         config.updateTheme()
+        
+    @QtCore.Slot(int)
+    def updateErrorComboBox(self, value):
+        config.updateInConfig("App Settings", "error_handling_mode", ["Shutdown", "Alert", "Continue"][value])
 
     @QtCore.Slot()
     #Opens a new test window
@@ -171,10 +254,14 @@ class MyWidget(QtWidgets.QWidget):
         file_management.createFolder("instances")
         file_management.createFolder("instances/" + name)
         
+def onAboutToQuit():
+    log("Application Exited")
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
+    app.aboutToQuit.connect(onAboutToQuit)
     config.updateTheme()
-    
+
     window = MyWidget()
     window.resize(800, 600)
     window.setMinimumSize(420, 260)
@@ -189,7 +276,6 @@ if __name__ == "__main__":
         tray = QSystemTrayIcon()
         tray.setIcon(QIcon("assets/app_icons/icon.icns"))
         tray.setVisible(True)
-        print()
     else:
         #Windows
         window.setWindowTitle("Unofficial Cosmic Reach Launcher - Windows")

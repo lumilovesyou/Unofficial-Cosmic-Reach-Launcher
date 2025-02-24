@@ -5,9 +5,10 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QMenu
 from functools import partial
 from . import flow_layout, file_management, instance_management
+from .logs import log
 
 def reloadInstances(self, homeLayout, runningInstances):
-        print("Reloading instances!")
+        log("Reloading instances!")
         #Updates instances displayed
         #Deletes current instance buttons
         if homeLayout is not None:
@@ -38,7 +39,7 @@ def reloadInstances(self, homeLayout, runningInstances):
                     instanceButton.setText(instanceName)
                     #Sets the icon
                     iconPath = os.path.join(instancePath, "icon.png")
-                    print(str(os.path.isfile(iconPath)) + " - " + instancePath)
+                    log(str(os.path.isfile(iconPath)) + " - " + instancePath)
                     if os.path.isfile(iconPath):
                         icon = QIcon(iconPath)
                     else:

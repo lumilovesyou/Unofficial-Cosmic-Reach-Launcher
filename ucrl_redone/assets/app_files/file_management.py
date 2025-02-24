@@ -1,12 +1,16 @@
 import os
+from .logs import log
 
 def createFolder(location, overwrite=False):
     if not os.path.exists(location) or overwrite:
             os.makedirs(location)
             
-def checkDirValidity(file_to_check):
-    if not os.path.exists("./" + file_to_check + "/"):
-        os.mkdir("./" + file_to_check)
-        print("Created " + file_to_check)
+def checkDirValidity(fileToCheck: str):
+    if not os.path.exists("./" + fileToCheck + "/"):
+        os.mkdir("./" + fileToCheck)
+        log("Created " + fileToCheck)
     else:
-        print(file_to_check + " already exists!")
+        log(fileToCheck + " already exists!")
+
+def checkForDir(fileToCheck: str):
+    return os.path.exists(fileToCheck)

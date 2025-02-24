@@ -18,5 +18,7 @@ def developerModeWidgets(visibility, self):
 #Toggles visibility for dev buttons
             if not visibility or visibility == "False":
                 self.relistButton.hide()
+                self.errorDropdown.hide()
             else:
                 self.relistButton.show()
+                self.errorDropdown.show()
