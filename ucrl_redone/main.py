@@ -1,6 +1,7 @@
 import sys
+import time
 import traceback
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import *
@@ -15,17 +16,42 @@ prepareLogs()
 
 class LogReaderThread(QThread):
     #Sends the updated log to the main thread
-    logUpdated = Signal(str)
+    logUpdated = Signal(str, bool)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.running = False
 
     def run(self):
+        self.running = True
+        log("Starting log tab")
         #Reads the log file in a separate thread
         try:
             with open("logs/latest.log", "r") as file:
+                log("Log tab started")
                 text = file.read()
-                self.logUpdated.emit(text)
+                self.logUpdated.emit(text, True)
+                file.seek(0)
+                line = len(file.readlines())
+                file.seek(0, 2)
+                while self.running:
+                    text = file.readline()
+                    if text:
+                        file.seek(0)
+                        lineList = file.readlines()
+                        text = "".join(lineList[line:])
+                        line = len(lineList)
+                        self.logUpdated.emit(text, False)    
+                        file.seek(0, 2)
+                    QtCore.QThread.msleep(500)
         except Exception as e:
+            log("Failed to start log tab!")
+            log(f"Error reading log file: {e}")
             self.logUpdated.emit(f"Error reading log file: {e}")
-        print("working")
+        
+    def stop(self):
+        log("Exiting log tab")
+        self.running = False
 
 def customExceptHook(type, value, tb):
     formatted_traceback = ''.join(traceback.format_exception(type, value, tb)) #Tb stands for Traceback
@@ -152,6 +178,11 @@ class MyWidget(QtWidgets.QWidget):
         #Text Areas
         self.logTextArea = QTextEdit("Testing Testing 1... 2... 3...")
         self.logTextArea.setReadOnly(True)
+        self.devLogTextArea = QTextEdit()
+        self.devLogTextArea.setFixedHeight(50)
+        #Buttons again
+        self.devLogSendButton = QPushButton("Log")
+        self.devLogSendButton.clicked.connect(lambda: log(f"[dev] {self.devLogTextArea.toPlainText()}"))
         
         #Adding Widgets to Settings
         settingsLayout.addWidget(self.themeLabel)
@@ -175,6 +206,8 @@ class MyWidget(QtWidgets.QWidget):
         
         #Adding Widgets to Log
         logLayout.addWidget(self.logTextArea)
+        logLayout.addWidget(self.devLogTextArea)
+        logLayout.addWidget(self.devLogSendButton)
         
         #Hides developer settings
         developer.developerModeWidgets(config.checkInConfig("App Settings", "dev_mode"), self)
@@ -204,13 +237,21 @@ class MyWidget(QtWidgets.QWidget):
             menu.exec(senderButton.mapToGlobal(pos))
     
     ### Logs related stuff     
-    def updateLogs(self, text):
+    def updateLogs(self, text: str, set: bool = False):
         #Updates the log text
-        self.logTextArea.setText(text)
+        if set:
+            self.logTextArea.setText(text)
+        else:
+            self.logTextArea.moveCursor(QtGui.QTextCursor.End)
+            self.logTextArea.insertPlainText(text)
+            if type(text) is list:
+                print("wow")
         
     def onTabChanged(self, index):
-        if self.tabs.tabText(index) == "Logs":
+        if self.tabs.tabText(index) == "Logs" and not self.logUpdateThread.isRunning():
             self.logUpdateThread.start() #Starts the thread to update logs
+        else:
+            self.logUpdateThread.stop() #Stops the thread
 
     @QtCore.Slot()
     def magic(self):
