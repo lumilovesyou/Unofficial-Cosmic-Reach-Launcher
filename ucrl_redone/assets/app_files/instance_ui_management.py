@@ -44,7 +44,7 @@ def reloadInstances(self, homeLayout, runningInstances):
                             if "name" in openedFile:
                                 instanceName = openedFile["name"]
                             else:
-                                instanceName = instancePath
+                                instanceName = instancePath.split("/")[1]
                     else:
                         instanceName = instancePath.split("/")[1]
                         
@@ -52,7 +52,6 @@ def reloadInstances(self, homeLayout, runningInstances):
                     log(instanceName)
                     #Sets the icon
                     iconPath = os.path.join(instancePath, "icon.png")
-                    log(str(os.path.isfile(iconPath)) + " - " + instancePath)
                     if os.path.isfile(iconPath):
                         icon = QIcon(iconPath)
                     else:

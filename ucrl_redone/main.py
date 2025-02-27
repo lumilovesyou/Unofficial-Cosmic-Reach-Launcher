@@ -16,6 +16,8 @@ prepareLogs()
 
 log(systemInfo())
 
+app_info_and_update.checkInstalledVersions()
+
 class LogReaderThread(QThread):
     #Sends the updated log to the main thread
     logUpdated = Signal(str, bool)
@@ -217,6 +219,8 @@ class MyWidget(QtWidgets.QWidget):
         
         passSelf(self)
         app_info_and_update.downloadAndProcessVersions()
+        if not app_info_and_update.checkOnline():
+            log("%e No connection!")
     
     # I tried to move this to instance_ui_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
     def showInstanceContextMenu(self, pos):
@@ -320,8 +324,13 @@ class MyWidget(QtWidgets.QWidget):
                 name = name.replace('"', '\\"')
                 file.write(f'{{"name": "{name}","version": "{version}","keys": {{}}}}')
                 file.close()
-            shutil.copy(icon, f"{location}/icon.{icon.split('.')[-1]}")
+            if not icon == "assets/app_icons/ucrl_icon.png":
+                shutil.copy(icon, f"{location}/icon.{icon.split('.')[-1]}")
             ##
+            
+            if not app_info_and_update.hasVersionInstalled(version): #Checks to see if the instance version is already installed
+                app_info_and_update.installVersion(version) #Installs if not
+            
             self.newInstance.close() #Closes the instance window
             instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
         except Exception as e:
