@@ -14,3 +14,6 @@ def checkDirValidity(fileToCheck: str):
 
 def checkForDir(fileToCheck: str):
     return os.path.exists(fileToCheck)
+
+def checkForFile(fileToCheck: str):
+    return os.path.isfile(fileToCheck)

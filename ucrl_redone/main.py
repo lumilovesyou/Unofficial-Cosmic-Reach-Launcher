@@ -1,18 +1,20 @@
 import sys
-import time
+import shutil
 import traceback
 from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import *
-from assets.app_files import config, developer
-from assets.app_files.logs import prepareLogs, log, passSelf
+from assets.app_files import config, developer, app_info_and_update
+from assets.app_files.logs import prepareLogs, log, passSelf, systemInfo
 from assets.app_files import file_management
 from assets.app_files import instance_management
 from assets.app_files import system
 from assets.app_files import instance_ui_management
 
 prepareLogs()
+
+log(systemInfo())
 
 class LogReaderThread(QThread):
     #Sends the updated log to the main thread
@@ -214,6 +216,7 @@ class MyWidget(QtWidgets.QWidget):
         instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances)
         
         passSelf(self)
+        app_info_and_update.downloadAndProcessVersions()
     
     # I tried to move this to instance_ui_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
     def showInstanceContextMenu(self, pos):
@@ -292,8 +295,39 @@ class MyWidget(QtWidgets.QWidget):
             
     @QtCore.Slot(str, str, str, str)
     def createInstance(self, loader, version, name, icon):
-        file_management.createFolder("instances")
-        file_management.createFolder("instances/" + name)
+        try:
+            ##Makes sure file path is valid
+            validCharacters = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()-_ ")
+            filePath = list(name)
+            for i in range(len(filePath)):
+                if not filePath[i] in validCharacters:
+                    filePath[i] = "_"
+            filePath = "".join(filePath)
+            ##
+            ##Creates the instances folder
+            location = "instances/" + filePath
+            file_management.createFolder("instances")
+            ##
+            ##Checks if the instance name is taken
+            if file_management.checkForDir(location):
+                log(f"Couldn't make instance \"{filePath}\" because it already exists!")
+                system.openErrorWindow(self, f"Couldn't make instance \"{filePath}\" because it already exists!", "Error")
+                return
+            ##
+            ##Creates the instance folder, icon, and files
+            file_management.createFolder(location)
+            with open(f"{location}/about.json", "w") as file:
+                name = name.replace('"', '\\"')
+                file.write(f'{{"name": "{name}","version": "{version}","keys": {{}}}}')
+                file.close()
+            shutil.copy(icon, f"{location}/icon.{icon.split('.')[-1]}")
+            ##
+            self.newInstance.close() #Closes the instance window
+            instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
+        except Exception as e:
+            log(f"Failed to create instance: {e}")
+            system.openErrorWindow(str(e), "Failed to Create Instance!")
+        
         
 def onAboutToQuit():
     log("Application Exited")

@@ -1,6 +1,6 @@
 import sys
 import platform
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QVBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QVBoxLayout, QLabel, QWidget, QMessageBox
 
 def checkOs():
     if platform.system() == 'Darwin':
@@ -9,6 +9,9 @@ def checkOs():
         return False
     else:
         return ("Unknown")
+    
+def returnOsName():
+    return(platform.system())
     
 def openDialog(name, type, self):
     file_path, _ = QFileDialog.getOpenFileName(self, name, "", type)
@@ -26,3 +29,6 @@ def openTestWindow(self):
     layout.addWidget(label)
     self.editInstance.setCentralWidget(centralWidget)
     self.editInstance.show()
+    
+def openErrorWindow(error: str , title:str = "Error"):
+    QMessageBox.warning(None, title, error)

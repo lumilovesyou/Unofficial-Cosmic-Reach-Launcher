@@ -2,7 +2,7 @@ import os
 import json
 import subprocess
 import random as ran
-from . import instance_management, file_management
+from . import instance_management, file_management, github_interaction, app_info_and_update
 from .logs import log
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget
 from PySide6.QtCore import Qt
@@ -68,7 +68,7 @@ def launchInstance(self, instanceName, senderButton):
 def addInstance(self):
     #Checking if instance folder exists
     file_management.checkDirValidity("/instances")
-    
+
     #Defining Window
     self.newInstance = QMainWindow()
     self.newInstance.setWindowTitle("New Instance")
@@ -88,11 +88,11 @@ def addInstance(self):
     #Defining LineEdits
     self.instanceName = QLineEdit(self.newInstance)
     instanceName = "New Instance"
-    for i in range(1, 100):
+    i = 0
+    while True:
+        i += 1
         if file_management.checkForDir(f"instances/{instanceName}"):
             instanceName = f"New Instance ({i})"
-        elif i == 100:
-            instanceName = ran.randint(1, 10000000)
         else:
             break
     self.instanceName.setText(instanceName)
@@ -106,10 +106,23 @@ def addInstance(self):
 
     #Defining QComboBox
     self.loader = QComboBox()
-    self.loader.addItems(["Vanilla", "Quilt", "Fabric", "Puzzle"])
+    self.loader.addItems(["Vanilla"])
     layout.addWidget(self.loader, 2, 0, 1, 1)
     
-    fill = ["0.1.46"]
+    #Define the version selection menu's options
+    fill = []
+    """
+    versionsInfoFile = json.loads(github_interaction.getFile("CRModders", "CosmicArchive", "versions.json"))
+    for version in versionsInfoFile["versions"]:
+        fill.append(version["id"])
+    """
+    #app_info_and_update.downloadAndProcessVersions()
+    with open("meta/version.json", "r") as file:
+        for version in json.loads(file.read())["versions"]:
+            fill.append(version)
+        
+    
+    #Define the QComboBox for the version selection menu
     self.version = QComboBox()
     self.version.addItems(fill)
     layout.addWidget(self.version, 2, 1, 1, 3)

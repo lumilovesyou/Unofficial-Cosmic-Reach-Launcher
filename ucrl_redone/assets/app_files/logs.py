@@ -3,6 +3,8 @@ import os
 import datetime as dt
 import random as ran
 import inspect
+from .system import checkOs, returnOsName
+from .app_info_and_update import returnAppVersion
 
 savedSelf = None
 
@@ -12,8 +14,11 @@ def log(text: str, filePath: str = "logs"):
     caller_frame = inspect.stack()[1]
     caller_file = os.path.basename(caller_frame.filename)
     date = dt.datetime.now()
-    if text[0:2] == "%e":
+    identifier = text[0:2]
+    if identifier == "%e":
         message = f"%e [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}"
+    elif identifier == "%i":
+        message = f"%i [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}"
     else:
         message = f"[{date.hour}.{date.minute}.{date.second}] {caller_file}: {text}"
     with open(f"{filePath}/latest.log", "a") as file:
@@ -41,6 +46,9 @@ def checkLatest(filePath: str = "logs"):
 def prepareLogs(filePath: str = "logs"):
     cleanLatest(filePath)
     checkLatest(filePath)
+    
+def systemInfo():
+    return f"%iSystem identified: {checkOs()}\n%i System identity: {returnOsName()}\n%i App version: {returnAppVersion()}\n%i Python version: {sys.version.split(' ')[0]}"
 
 def passSelf(self):
     savedSelf = self
