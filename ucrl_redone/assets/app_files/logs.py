@@ -14,7 +14,7 @@ def log(text: str, filePath: str = "logs"):
     caller_frame = inspect.stack()[1]
     caller_file = os.path.basename(caller_frame.filename)
     date = dt.datetime.now()
-    identifier = text[0:2]
+    identifier = str(text)[0:2]
     if identifier == "%e":
         message = f"%e [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}"
     elif identifier == "%i":
@@ -25,9 +25,9 @@ def log(text: str, filePath: str = "logs"):
         file.write(f"{message}\n")
         file.close
     with open(f"{filePath}/latest.log", "r") as file:
-        output = file.read()
+        output = file.readlines()
         file.close
-    print(output)
+    print(output[-2])
         
 def cleanLatest(filePath: str = "logs"):
     if not os.path.exists(filePath):

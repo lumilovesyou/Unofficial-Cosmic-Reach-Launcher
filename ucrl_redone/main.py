@@ -5,7 +5,7 @@ from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import *
-from assets.app_files import config, developer, app_info_and_update
+from assets.app_files import config, developer, app_info_and_update, web_interaction
 from assets.app_files.logs import prepareLogs, log, passSelf, systemInfo
 from assets.app_files import file_management
 from assets.app_files import instance_management
@@ -167,6 +167,8 @@ class MyWidget(QtWidgets.QWidget):
         #Buttons
         self.relistButton = QPushButton("Reload Instances")
         self.relistButton.clicked.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
+        self.checkVersionsButton = QPushButton("Check Installed Versions")
+        self.checkVersionsButton.clicked.connect(lambda: app_info_and_update.checkInstalledVersions())
         #Toggle
         self.developerToggle = QPushButton("Developer Mode: ", self)
         self.developerToggle.setCheckable(True)
@@ -206,6 +208,7 @@ class MyWidget(QtWidgets.QWidget):
         settingsLayout.addWidget(self.errorModeLabel)
         settingsLayout.addWidget(self.errorDropdown)
         settingsLayout.addWidget(self.relistButton)
+        settingsLayout.addWidget(self.checkVersionsButton)
         settingsLayout.addStretch()
         
         #Adding Widgets to Log
@@ -219,7 +222,7 @@ class MyWidget(QtWidgets.QWidget):
         
         passSelf(self)
         app_info_and_update.downloadAndProcessVersions()
-        if not app_info_and_update.checkOnline():
+        if not web_interaction.checkConnection():
             log("%e No connection!")
     
     # I tried to move this to instance_ui_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
@@ -252,7 +255,7 @@ class MyWidget(QtWidgets.QWidget):
             self.logTextArea.moveCursor(QtGui.QTextCursor.End)
             self.logTextArea.insertPlainText(text)
             if type(text) is list:
-                print("wow")
+                pass
         
     def onTabChanged(self, index):
         if self.tabs.tabText(index) == "Logs" and not self.logUpdateThread.isRunning():

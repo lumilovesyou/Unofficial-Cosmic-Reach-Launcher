@@ -1,14 +1,12 @@
 import os
 import json
-from . import file_management, github_interaction
-
-online = False
+from . import file_management, web_interaction
 
 def returnAppVersion():
     return "0.0.0" #This can be used in the future for updating the application so only this needs to be set to change the version
 
 def downloadAndProcessVersions():
-    versionsInfoFile = github_interaction.getFile("CRModders", "CosmicArchive", "versions.json")
+    versionsInfoFile = web_interaction.getFile("CRModders", "CosmicArchive", "versions.json")
     if versionsInfoFile:
         online = True
         versionsInfoFile = json.loads(versionsInfoFile)
@@ -43,29 +41,28 @@ def hasVersionInstalled(version: str):
         return version in file["installedVersions"]
     
 def installVersion(version: str, source: str = "vanilla"):
-    print(f"Installing {version}")
-    with open("meta/version.json", "r") as file:
-        file = json.loads(file.read())
-        file = file["links"]
-        if version in file:
-            versionLink = file[version]
-        else:
-            return
-    fileContent = github_interaction.getFileUrl(versionLink)
-    file_management.checkDirValidity(f"meta/versions/{version}")
-    with open(f"meta/versions/{version}/Cosmic-Reach-{version}.jar", "wb") as file:
-        file.write(fileContent)
-        file.close()
-    with open(f"meta/versions/{version}/about.json", "w") as file:
-        file.write(f'{{"version": "{version}", "type": "vanilla", file": "Cosmic-Reach-{version}"}}')
-    checkInstalledVersions()
+    if web_interaction.checkConnection():
+        with open("meta/version.json", "r") as file:
+            file = json.loads(file.read())
+            file = file["links"]
+            if version in file:
+                versionLink = file[version]
+            else:
+                return
+        fileContent = web_interaction.getFileUrl(versionLink)
+        file_management.checkDirValidity(f"meta/versions/{version}")
+        with open(f"meta/versions/{version}/Cosmic-Reach-{version}.jar", "wb") as file:
+            file.write(fileContent)
+            file.close()
+        with open(f"meta/versions/{version}/about.json", "w") as file:
+            file.write(f'{{"version": "{version}", "type": "vanilla", "file": "Cosmic-Reach-{version}", "keys": []}}')
+        checkInstalledVersions()
 
 def checkInstalledVersions():
     file_management.checkDirValidity("meta/versions")
     fileToWrite = json.loads('{"installedVersions": []}')
     for dir in os.listdir("meta/versions"):
             dir = f"meta/versions/{dir}"
-            print(dir)
             if os.path.isdir(dir) and file_management.checkForFile(f"{dir}/about.json"):
                 with open(f"{dir}/about.json", "r") as file:
                     aboutFile = json.loads(file.read())
@@ -74,6 +71,3 @@ def checkInstalledVersions():
                     fileToWrite["installedVersions"].append(aboutFile["version"])
     with open("meta/versions/installed.json", "w") as file:
         file.write(json.dumps(fileToWrite))
-        
-def checkOnline():
-    return online

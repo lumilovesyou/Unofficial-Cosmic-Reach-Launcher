@@ -2,8 +2,8 @@ import os
 import json
 import subprocess
 import random as ran
-from . import instance_management, file_management, github_interaction, app_info_and_update
-from .logs import log
+from . import instance_management, file_management, app_info_and_update, web_interaction, system
+from .logs import log, prepareLogs
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
@@ -24,7 +24,7 @@ def checkForVersion(version):
     
 def loadEnvironmentVars(file_path):
     with open(file_path, "r") as file:
-            env_vars = json.load(file)
+            env_vars = json.loads(file.read())
     env = os.environ.copy()
     env.update(env_vars["keys"])
     return env
@@ -44,26 +44,32 @@ def runVersion (version, keys, type, instance_ID):
     return(process.pid)
 
 #Higher-level functions
-def launchInstance(self, instanceName, senderButton):
+def launchInstance(self, instancePath, senderButton):
+        log(f"Instance path: {instancePath}")
         #Gets the button that called
         #Handles the instance launch
-        log(f"Launching instance: {instanceName}", f"instances/{instanceName}/logs")
-        filePath = "instances/" + instanceName + "/about.json"
+        prepareLogs(f"instances/{instancePath}/logs")
+        log(f"Launching instance: {instancePath}", f"instances/{instancePath}/logs")
+        filePath = "instances/" + instancePath + "/about.json"
         if os.path.exists(filePath):
         #Checks if file exists
-            if not instanceName in self.runningInstances:
-                instanceVersion = json.load(open(filePath, "r"))
-                log(instanceVersion["version"])
-                check = instance_management.checkForVersion(instanceVersion["version"])
+            if not instancePath in self.runningInstances:
+                with open(filePath, "r") as file:
+                    instanceVersion = json.loads(file.read())
+                    file.close()
+                instanceVersion = instanceVersion["version"]
+                log(instanceVersion)
+                check = instance_management.checkForVersion(instanceVersion)
                 if check == True:
                     senderButton.setStyleSheet("border-radius: 10px; background-color: #9043437d;")
                     log("Can run version!")
-                    PID = instance_management.runVersion(str(instanceVersion["version"]), "placeholder", "placeholder", "placeholder")
-                    self.runningInstances.append(instanceName)
+                    PID = instance_management.runVersion(str(instanceVersion), "placeholder", "placeholder", "placeholder")
+                    self.runningInstances.append(instancePath)
                 else:
-                    log(check)
+                    app_info_and_update.installVersion(instanceVersion)
+                    system.openErrorWindow(f"Failed to load instance! Version {instanceVersion} was missing and is now being installed.")
             else:
-                log(f"Already running {instanceName}")
+                log(f"Already running {instancePath}")
                  
 def addInstance(self):
     #Checking if instance folder exists

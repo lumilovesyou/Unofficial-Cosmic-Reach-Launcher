@@ -5,9 +5,9 @@ from .system import openErrorWindow
 
 g = Github()
 
-def checkConnection():
+def checkConnection(ip: str = "8.8.8.8"):
     try:
-        response = requests.get("8.8.8.8", timeout=5)
+        response = requests.get(f"https://{ip}", timeout=5)
         if response.status_code == 200:
             return True
         else:

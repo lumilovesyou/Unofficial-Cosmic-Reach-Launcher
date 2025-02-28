@@ -17,12 +17,14 @@ def toggleDeveloper(self):
 def developerModeWidgets(visibility, self):
 #Toggles visibility for dev buttons
             if not visibility or visibility == "False":
+                self.checkVersionsButton.hide()
                 self.relistButton.hide()
                 self.errorModeLabel.hide()
                 self.errorDropdown.hide()
                 self.devLogTextArea.hide()
                 self.devLogSendButton.hide()
             else:
+                self.checkVersionsButton.show()
                 self.relistButton.show()
                 self.errorModeLabel.show()
                 self.errorDropdown.show()

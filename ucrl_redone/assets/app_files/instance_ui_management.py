@@ -49,7 +49,6 @@ def reloadInstances(self, homeLayout, runningInstances):
                         instanceName = instancePath.split("/")[1]
                         
                     instanceButton.setText(instanceName)
-                    log(instanceName)
                     #Sets the icon
                     iconPath = os.path.join(instancePath, "icon.png")
                     if os.path.isfile(iconPath):
@@ -66,7 +65,7 @@ def reloadInstances(self, homeLayout, runningInstances):
                         instanceButton.setStyleSheet("background-color: #9043437d;")
                     
                     #Button clicked events
-                    instanceButton.clicked.connect(partial(instance_management.launchInstance, self, instancePath, instanceButton))
+                    instanceButton.clicked.connect(partial(instance_management.launchInstance, self, instancePath.split("/")[1], instanceButton))
                     instanceButton.setContextMenuPolicy(Qt.CustomContextMenu)
                     instanceButton.customContextMenuRequested.connect(self.showInstanceContextMenu)
                     
