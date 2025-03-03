@@ -8,7 +8,6 @@ def returnAppVersion():
 def downloadAndProcessVersions():
     versionsInfoFile = web_interaction.getFile("CRModders", "CosmicArchive", "versions.json")
     if versionsInfoFile:
-        online = True
         versionsInfoFile = json.loads(versionsInfoFile)
         writeToFile = {}
         with open("meta/version.json", "w") as file:
@@ -30,8 +29,6 @@ def downloadAndProcessVersions():
             writeToFile["latestVersion"] = versionsInfoFile["latest"]["pre_alpha"]
             json.dump(writeToFile, file)
             file.close()
-    else:
-        online = False
         
 def hasVersionInstalled(version: str):
     if not file_management.checkForFile("meta/versions/installed.json"):

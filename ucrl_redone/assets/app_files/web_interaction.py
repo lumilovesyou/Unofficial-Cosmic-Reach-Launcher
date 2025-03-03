@@ -11,6 +11,16 @@ def checkConnection(ip: str = "8.8.8.8"):
         if response.status_code == 200:
             return True
         else:
+            return checkConnectionBackup()
+    except requests.RequestException:
+        return checkConnectionBackup()
+
+def checkConnectionBackup(ip: str = "github.com"): #20.175.192.147 didn't work for some reason
+    try:
+        response = requests.get(f"https://{ip}", timeout=5)
+        if response.status_code == 200:
+            return True
+        else:
             return False
     except requests.RequestException:
         return False

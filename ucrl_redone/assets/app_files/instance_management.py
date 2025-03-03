@@ -1,5 +1,7 @@
 import os
 import json
+import signal
+import psutil
 import subprocess
 import random as ran
 from . import instance_management, file_management, app_info_and_update, web_interaction, system
@@ -29,7 +31,7 @@ def loadEnvironmentVars(file_path):
     env.update(env_vars["keys"])
     return env
 
-def runVersion (version, keys, type, instance_ID):
+def runVersion(version, keys, type, instance_ID):
     json_file = f"meta/versions/{version}/about.json"
     jar_file = f"meta/versions/{version}/Cosmic-Reach-{version}.jar"
     
@@ -37,11 +39,24 @@ def runVersion (version, keys, type, instance_ID):
     
     process = subprocess.Popen(
         ["java", "-jar", str(jar_file)],
-        env=env
+        env=env,
+        preexec_fn=os.setsid
     )
     
     log(f"Subprocess started with PID {process.pid}")
-    return(process.pid)
+    return(process)
+
+def endProcess(self, instancePath, senderButton):
+    process = self.runningInstancesProcess[instancePath]
+    process = psutil.Process(process.pid)
+    processChildren = process.children(True) #Gets the children process to properly kill
+    for process in processChildren:
+        process.send_signal(signal.SIGTERM)
+    self.runningInstancesProcess.pop(instancePath)
+    self.runningInstances.remove(instancePath)
+    senderButton.setStyleSheet("border-radius: 10px;")
+    
+    log(f"Subprocess terminated with PID {process.pid}")
 
 #Higher-level functions
 def launchInstance(self, instancePath, senderButton):
@@ -59,17 +74,20 @@ def launchInstance(self, instancePath, senderButton):
                     file.close()
                 instanceVersion = instanceVersion["version"]
                 log(instanceVersion)
-                check = instance_management.checkForVersion(instanceVersion)
+                check = checkForVersion(instanceVersion)
                 if check == True:
                     senderButton.setStyleSheet("border-radius: 10px; background-color: #9043437d;")
                     log("Can run version!")
-                    PID = instance_management.runVersion(str(instanceVersion), "placeholder", "placeholder", "placeholder")
+                    openedProcess = runVersion(str(instanceVersion), "placeholder", "placeholder", "placeholder")
                     self.runningInstances.append(instancePath)
+                    self.runningInstancesProcess[instancePath] = openedProcess
                 else:
-                    app_info_and_update.installVersion(instanceVersion)
                     system.openErrorWindow(f"Failed to load instance! Version {instanceVersion} was missing and is now being installed.")
+                    app_info_and_update.installVersion(instanceVersion)
             else:
                 log(f"Already running {instancePath}")
+                endProcess(self, instancePath, senderButton)
+                
                  
 def addInstance(self):
     #Checking if instance folder exists
@@ -122,9 +140,17 @@ def addInstance(self):
     for version in versionsInfoFile["versions"]:
         fill.append(version["id"])
     """
+    latestVersion = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt").split(" ")[0]
+    print(latestVersion)
+    
     #app_info_and_update.downloadAndProcessVersions()
     with open("meta/version.json", "r") as file:
-        for version in json.loads(file.read())["versions"]:
+        file = json.loads(file.read())["versions"]
+        
+        if not latestVersion in file:
+            app_info_and_update.downloadAndProcessVersions()
+        
+        for version in file:
             fill.append(version)
         
     

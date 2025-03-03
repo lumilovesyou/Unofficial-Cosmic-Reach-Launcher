@@ -88,6 +88,7 @@ class MyWidget(QtWidgets.QWidget):
         self.logUpdateThread.logUpdated.connect(self.updateLogs)
         
         self.runningInstances = []
+        self.runningInstancesProcess = {}
         
         ###Creating Tabs
         #Define Tabs
@@ -127,15 +128,42 @@ class MyWidget(QtWidgets.QWidget):
         self.settingsTab.setWidget(settingsContent)
         
         ###Defining Setting's Widgets
-        #Labels
+        ##Application theme label
         self.themeLabel = QLabel(self.settingsTab)
         self.themeLabel.setText("<div style ='font-size: 18px;'><b>Application Theme</b></div>")
+        #Application theme dropdown box
+        self.themeDropdown = QComboBox()
+        dropdownFill = ["Dark", "Light", "Auto"]
+        self.themeDropdown.addItems(dropdownFill)
+        self.themeDropdown.currentIndexChanged.connect(self.updateThemeComboBox)
+        self.themeDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "app_theme")))
+        #Startup Height and Width Spinners
+        self.widthInput = QSpinBox()
+        self.widthInput.setRange(420, 999999)
+        self.widthInput.setValue(int(config.checkInConfig("App Settings", "defaultWidth")))
+        self.heightInput = QSpinBox()
+        self.heightInput.setRange(260, 999999)
+        self.heightInput.setValue(int(config.checkInConfig("App Settings", "defaultHeight")))
+        #A Horizontal Box For the Spinners
+        self.tinyBoxWidthAndHeight = QHBoxLayout()
+        self.tinyBoxWidthAndHeight.addWidget(self.widthInput)
+        self.tinyBoxWidthAndHeight.addWidget(self.heightInput)
+        #Startup Size Update Button
+        self.updateDefaultSizeButton = QPushButton("Update Startup Size")
+        self.updateDefaultSizeButton.clicked.connect(self.updateDefaultStartupSize)
+        ##Update label
         self.updateLabel = QLabel(self.settingsTab)
         self.updateLabel.setText("<div style ='font-size: 18px;'><b>Update</b></div>")
+        #Check for updates button
+        self.updateButton = QPushButton("Check for Updates")
+        self.updateButton.setIcon(QIcon("assets/button_icons/update_darkmode.svg"))
+        self.updateButton.clicked.connect(self.magic)
+        ##Info label
         self.infoLabel = QLabel(self.settingsTab)
         self.infoLabel.setText("<div style ='font-size: 18px;'><b>Info</b></div>")
+        #Info (sub) labels
         self.versionLabel = QLabel(self.settingsTab)
-        self.versionLabel.setText("<div style ='font-size: 13px;'>UCRL 0.0.8</div>")
+        self.versionLabel.setText(f"<div style ='font-size: 13px;'>U.C.R.L. {app_info_and_update.returnAppVersion()}</div>") 
         self.authorsLabel = QLabel(self.settingsTab)
         self.authorsLabel.setText("<div style ='font-size: 13px;'>By <a href='https://github.com/ieatsoulsmeow'>IEatSoulsMeow</a> and <a href='https://github.com/lumilovesyou'>FelisAraneae</a>")
         self.authorsLabel.setOpenExternalLinks(True)
@@ -145,31 +173,10 @@ class MyWidget(QtWidgets.QWidget):
         self.discordLabel = QLabel(self.settingsTab)
         self.discordLabel.setText("<div style ='font-size: 13px;'>Join the unofficial <a href='https://discord.gg/jRs9q7FMSu'>Discord</a> for other Cosmic Reach launchers")
         self.discordLabel.setOpenExternalLinks(True)
+        ##Developer settings label
         self.developerLabel = QLabel(self.settingsTab)
         self.developerLabel.setText("<div style ='font-size: 18px;'><b>Developer Settings</b></div>")
-        self.errorModeLabel = QLabel(self.settingsTab)
-        self.errorModeLabel.setText("Application Error Mode")
-        #QComboBoxes
-        self.themeDropdown = QComboBox()
-        dropdownFill = ["Dark", "Light", "Auto"]
-        self.themeDropdown.addItems(dropdownFill)
-        self.themeDropdown.currentIndexChanged.connect(self.updateThemeComboBox)
-        self.themeDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "app_theme")))
-        self.errorDropdown = QComboBox()
-        dropdownFill = ["Shutdown", "Alert", "Continue"]
-        self.errorDropdown.addItems(dropdownFill)
-        self.errorDropdown.currentIndexChanged.connect(self.updateErrorComboBox)
-        self.errorDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "error_handling_mode")))
-        #Buttons
-        self.updateButton = QPushButton("Update Application")
-        self.updateButton.setIcon(QIcon("assets/button_icons/update_darkmode.svg"))
-        self.updateButton.clicked.connect(self.magic)
-        #Buttons
-        self.relistButton = QPushButton("Reload Instances")
-        self.relistButton.clicked.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
-        self.checkVersionsButton = QPushButton("Check Installed Versions")
-        self.checkVersionsButton.clicked.connect(lambda: app_info_and_update.checkInstalledVersions())
-        #Toggle
+        #Developer mode enabled button
         self.developerToggle = QPushButton("Developer Mode: ", self)
         self.developerToggle.setCheckable(True)
         self.developerToggle.setChecked(True)
@@ -181,18 +188,37 @@ class MyWidget(QtWidgets.QWidget):
             self.developerToggle.setChecked(False)
             self.developerToggle.setText("Developer Mode: False")
             self.developerToggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
-        #Text Areas
+        #Application error mode label
+        self.errorModeLabel = QLabel(self.settingsTab)
+        self.errorModeLabel.setText("<div style ='font-size: 12px;'><b>Application Error Mode</b></div>")
+        #Application error mode dropdown box
+        self.errorDropdown = QComboBox()
+        dropdownFill = ["Shutdown", "Alert", "Continue"]
+        self.errorDropdown.addItems(dropdownFill)
+        self.errorDropdown.currentIndexChanged.connect(self.updateErrorComboBox)
+        self.errorDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "error_handling_mode")))
+        #Developer buttons
+        self.relistButton = QPushButton("Reload Instances")
+        self.relistButton.clicked.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
+        self.checkVersionsButton = QPushButton("Check Installed Versions")
+        self.checkVersionsButton.clicked.connect(lambda: app_info_and_update.checkInstalledVersions())
+        
+        ###Defining Log's Widgets
+        #Log text area
         self.logTextArea = QTextEdit("Testing Testing 1... 2... 3...")
         self.logTextArea.setReadOnly(True)
+        #Send log text area
         self.devLogTextArea = QTextEdit()
         self.devLogTextArea.setFixedHeight(50)
-        #Buttons again
+        #Send log button
         self.devLogSendButton = QPushButton("Log")
         self.devLogSendButton.clicked.connect(lambda: log(f"[dev] {self.devLogTextArea.toPlainText()}"))
         
-        #Adding Widgets to Settings
+        ###Adding Widgets to Settings
         settingsLayout.addWidget(self.themeLabel)
         settingsLayout.addWidget(self.themeDropdown)
+        settingsLayout.addLayout(self.tinyBoxWidthAndHeight)
+        settingsLayout.addWidget(self.updateDefaultSizeButton)
         settingsLayout.addSpacing(35)
         settingsLayout.addWidget(self.updateLabel)
         settingsLayout.addWidget(self.updateButton)
@@ -211,7 +237,7 @@ class MyWidget(QtWidgets.QWidget):
         settingsLayout.addWidget(self.checkVersionsButton)
         settingsLayout.addStretch()
         
-        #Adding Widgets to Log
+        #Adding Widgets to Logs
         logLayout.addWidget(self.logTextArea)
         logLayout.addWidget(self.devLogTextArea)
         logLayout.addWidget(self.devLogSendButton)
@@ -262,6 +288,7 @@ class MyWidget(QtWidgets.QWidget):
             self.logUpdateThread.start() #Starts the thread to update logs
         else:
             self.logUpdateThread.stop() #Stops the thread
+    ###
 
     @QtCore.Slot()
     def magic(self):
@@ -271,6 +298,11 @@ class MyWidget(QtWidgets.QWidget):
     #Developer mode toggle & button colour update
     def callToggleDeveloper(self):
         developer.toggleDeveloper(self)
+        
+    @QtCore.Slot()
+    def updateDefaultStartupSize(self):
+        config.updateInConfig("App Settings", "defaultWidth", self.widthInput.value())
+        config.updateInConfig("App Settings", "defaultHeight", self.heightInput.value())
 
     @QtCore.Slot(int)
     #Updates theme when user selects a different one
@@ -317,9 +349,17 @@ class MyWidget(QtWidgets.QWidget):
             ##
             ##Checks if the instance name is taken
             if file_management.checkForDir(location):
+                '''
                 log(f"Couldn't make instance \"{filePath}\" because it already exists!")
                 system.openErrorWindow(self, f"Couldn't make instance \"{filePath}\" because it already exists!", "Error")
                 return
+                '''
+                locationAssure = location
+                i = 0
+                while file_management.checkForDir(locationAssure):
+                    i += 1
+                    locationAssure = f"{location} ({i})"
+                location = locationAssure
             ##
             ##Creates the instance folder, icon, and files
             file_management.createFolder(location)
@@ -350,7 +390,7 @@ if __name__ == "__main__":
     config.updateTheme()
 
     window = MyWidget()
-    window.resize(800, 600)
+    window.resize(int(config.checkInConfig("App Settings", "defaultWidth")), int(config.checkInConfig("App Settings", "defaultHeight")))
     window.setMinimumSize(420, 260)
     #Checks and creates files
     file_management.checkDirValidity("instances")

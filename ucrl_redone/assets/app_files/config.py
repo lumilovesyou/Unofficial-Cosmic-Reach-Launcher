@@ -8,8 +8,10 @@ def checkForConfig():
     if not os.path.exists("./config.ini"):
         config["App Settings"] = {
             "app_theme": "Auto",
-            "dev_mode": "True",
-            "error_handling_mode": "Alert"
+            "dev_mode": "False",
+            "error_handling_mode": "Alert",
+            "defaultWidth": "800",
+            "defaultHeight": "600"
         }
         with open("./config.ini", "w") as configfile:
             config.write(configfile)
@@ -29,7 +31,7 @@ def updateInConfig(section, key, value):
     config = configparser.ConfigParser()
     config_file = "./config.ini"
     config.read("./config.ini")
-    config.set(section, key, value)
+    config.set(section, key, str(value))
     with open(config_file, 'w') as configfile:
         config.write(configfile)
         
