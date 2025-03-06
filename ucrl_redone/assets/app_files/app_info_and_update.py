@@ -1,34 +1,37 @@
 import os
 import json
-from . import file_management, web_interaction
+from . import file_management, web_interaction, system
 
 def returnAppVersion():
     return "0.0.0" #This can be used in the future for updating the application so only this needs to be set to change the version
 
 def downloadAndProcessVersions():
-    versionsInfoFile = web_interaction.getFile("CRModders", "CosmicArchive", "versions.json")
-    if versionsInfoFile:
-        versionsInfoFile = json.loads(versionsInfoFile)
-        writeToFile = {}
-        with open("meta/version.json", "w") as file:
-            listOfVersions = []
-            for version in versionsInfoFile["versions"]:
-                listOfVersions.append(version["id"])
+    if web_interaction.checkConnection():
+        versionsInfoFile = web_interaction.getFile("CRModders", "CosmicArchive", "versions.json")
+        if versionsInfoFile:
+            versionsInfoFile = json.loads(versionsInfoFile)
+            writeToFile = {}
+            with open("meta/version.json", "w") as file:
+                listOfVersions = []
+                for version in versionsInfoFile["versions"]:
+                    listOfVersions.append(version["id"])
+                    
+                listOfVersionsAndLink = {}
+                i = 0
+                for version in versionsInfoFile["versions"]:
+                    i += 1
+                    try:
+                        listOfVersionsAndLink[version["id"]] = (version["client"]["url"])
+                    except Exception as e:
+                        print("")
                 
-            listOfVersionsAndLink = {}
-            i = 0
-            for version in versionsInfoFile["versions"]:
-                i += 1
-                try:
-                    listOfVersionsAndLink[version["id"]] = (version["client"]["url"])
-                except Exception as e:
-                    print("")
-            
-            writeToFile["versions"] = (listOfVersions)
-            writeToFile["links"] = (listOfVersionsAndLink)
-            writeToFile["latestVersion"] = versionsInfoFile["latest"]["pre_alpha"]
-            json.dump(writeToFile, file)
-            file.close()
+                writeToFile["versions"] = (listOfVersions)
+                writeToFile["links"] = (listOfVersionsAndLink)
+                writeToFile["latestVersion"] = versionsInfoFile["latest"]["pre_alpha"]
+                json.dump(writeToFile, file)
+                file.close()
+    else:
+        system.openErrorWindow(f"Couldn't download versions to process: Not connected!", "Error")
         
 def hasVersionInstalled(version: str):
     if not file_management.checkForFile("meta/versions/installed.json"):
@@ -54,6 +57,8 @@ def installVersion(version: str, source: str = "vanilla"):
         with open(f"meta/versions/{version}/about.json", "w") as file:
             file.write(f'{{"version": "{version}", "type": "vanilla", "file": "Cosmic-Reach-{version}", "keys": []}}')
         checkInstalledVersions()
+    else:
+        system.openErrorWindow(f"Couldn't install version {version}: Not connected!", "Error")
 
 def checkInstalledVersions():
     file_management.checkDirValidity("meta/versions")

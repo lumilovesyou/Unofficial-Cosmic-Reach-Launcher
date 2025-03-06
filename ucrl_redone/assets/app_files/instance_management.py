@@ -140,8 +140,10 @@ def addInstance(self):
     for version in versionsInfoFile["versions"]:
         fill.append(version["id"])
     """
-    latestVersion = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt").split(" ")[0]
-    print(latestVersion)
+    latestVersion = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt")
+    if latestVersion:
+        print(latestVersion)
+        latestVersion = latestVersion.split(" ")[0]
     
     #app_info_and_update.downloadAndProcessVersions()
     with open("meta/version.json", "r") as file:
@@ -174,3 +176,110 @@ def addInstance(self):
     self.newInstance.setCentralWidget(centralWidget)
     centralWidget.setContentsMargins(10, 10, 10, 10)
     self.newInstance.show()
+    
+def editInstance(self, instancePath):
+    #Checking if instance's folder exists
+    instancePath = f"instances/{instancePath}"
+    if not file_management.checkForDir(instancePath):
+        return
+
+    #Get the name of the instance
+    aboutLocation = f"{instancePath}/about.json"
+    if file_management.checkForFile(aboutLocation):
+        with open(aboutLocation) as file:
+            openedFile = json.loads(file.read())
+            if "name" in openedFile:
+                instanceName = openedFile["name"]
+            else:
+                instanceName = instancePath.split("/")[1]
+            if "version" in openedFile:
+                instanceVersion = openedFile["version"]
+            else:
+                instanceVersion = "Null"
+    else:
+        instanceName = instancePath.split("/")[1]
+
+    #Defining Window
+    self.editedInstance = QMainWindow()
+    self.editedInstance.setWindowTitle(f"Edit Instance - {instanceName}")
+    self.editedInstance.setMinimumSize(530, 300)
+    self.editedInstance.setMaximumSize(530, 300)
+    layout = QGridLayout()
+    layout.setAlignment(Qt.AlignTop)
+
+    #Defining Icon
+    iconPath = os.path.join(instancePath, "icon.png")
+    if os.path.isfile(iconPath):
+        icon = iconPath
+    else:
+        icon = "assets/app_icons/ucrl_icon.png"
+
+    self.iconLabel = QLabel(self.editedInstance)
+    pixmap = QPixmap(icon)
+    scaledPixmap = pixmap.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    self.iconLabel.setPixmap(scaledPixmap)
+    self.iconLabel.setAlignment(Qt.AlignCenter)
+    layout.addWidget(self.iconLabel, 0, 0, 1, 1)
+
+    #Defining LineEdits
+    self.instanceName = QLineEdit(self.editedInstance)
+    self.instanceName.setText(instanceName)
+    self.instanceName.setMinimumWidth(360)
+    layout.addWidget(self.instanceName, 0, 1, 1, 3)
+    
+    self.iconPathEdit = QLineEdit(self.editedInstance)
+    self.iconPathEdit.setText(icon)
+    self.iconPathEdit.setMinimumWidth(365)
+    layout.addWidget(self.iconPathEdit, 1, 0, 1, 2)
+
+    #Defining QComboBox
+    self.loader = QComboBox()
+    self.loader.addItems(["Vanilla"])
+    layout.addWidget(self.loader, 2, 0, 1, 1)
+    
+    #Define the version selection menu's options
+    fill = []
+    latestVersion = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt")
+    if latestVersion:
+        print(latestVersion)
+        latestVersion = latestVersion.split(" ")[0]
+    
+    #app_info_and_update.downloadAndProcessVersions()
+    with open("meta/version.json", "r") as file:
+        file = json.loads(file.read())["versions"]
+        
+        if not latestVersion in file:
+            app_info_and_update.downloadAndProcessVersions()
+        
+        for version in file:
+            fill.append(version)
+        
+    
+    #Define the QComboBox for the version selection menu
+    self.version = QComboBox()
+    self.version.addItems(fill)
+    index = self.version.findText(instanceVersion, Qt.MatchFlag.MatchFixedString)
+    if index >= 0:
+        self.version.setCurrentIndex(index)
+    layout.addWidget(self.version, 2, 1, 1, 3)
+
+    #Defining PushButton
+    self.selectIconButton = QPushButton("Select Icon", self.editedInstance)
+    self.selectIconButton.clicked.connect(self.selectIcon)
+    layout.addWidget(self.selectIconButton, 1, 3, 1, 1)
+    
+    self.finalizeInstanceButton = QPushButton("Delete Instance")
+    self.finalizeInstanceButton.setStyleSheet("background-color: red; color: white;")
+    self.finalizeInstanceButton.clicked.connect(lambda: self.deleteInstance(instancePath))
+    layout.addWidget(self.finalizeInstanceButton, 3, 0, 1, 2)
+    
+    self.finalizeInstanceButton = QPushButton("Save Instance")
+    self.finalizeInstanceButton.clicked.connect(lambda: self.saveEditedInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), instancePath, iconPath, self.iconPathEdit.text()))
+    layout.addWidget(self.finalizeInstanceButton, 3, 2, 1, 2)
+
+    #Setting Layout
+    centralWidget = QWidget()
+    centralWidget.setLayout(layout)
+    self.editedInstance.setCentralWidget(centralWidget)
+    centralWidget.setContentsMargins(10, 10, 10, 10)
+    self.editedInstance.show()

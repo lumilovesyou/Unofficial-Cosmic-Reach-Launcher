@@ -5,7 +5,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QMenu
 from functools import partial
-from . import flow_layout, file_management, instance_management
+from . import flow_layout, file_management, instance_management, system
 from .logs import log
 
 def reloadInstances(self, homeLayout, runningInstances):
@@ -59,6 +59,7 @@ def reloadInstances(self, homeLayout, runningInstances):
                     instanceButton.setFixedSize(QSize(100, 100))
                     instanceButton.setIconSize(QSize(48, 48))
                     instanceButton.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+                    instanceButton.setProperty("filepath", instancePath.split("/")[1])
                     #Checks if instance is running
                     instanceButton.setStyleSheet("border-radius: 10px;")
                     if instancePath in runningInstances:
@@ -78,7 +79,7 @@ def reloadInstances(self, homeLayout, runningInstances):
         homeLayout.addWidget(addInstance)
         #Adds "Edit Instances" button
         editInstances = QPushButton("Edit Instances")
-        editInstances.clicked.connect(self.editInstances)
+        editInstances.clicked.connect(lambda: system.openTestWindow(self))
         homeLayout.addWidget(editInstances)
 
         homeLayout.addStretch()

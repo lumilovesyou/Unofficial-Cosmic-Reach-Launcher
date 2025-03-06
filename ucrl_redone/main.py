@@ -1,4 +1,6 @@
+import os
 import sys
+import json
 import shutil
 import traceback
 from PySide6 import QtCore, QtWidgets, QtGui
@@ -110,33 +112,45 @@ class MyWidget(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.tabs)
         self.setLayout(layout)
-        self.homeLayout = QtWidgets.QHBoxLayout(self.homeTab)
-        settingsLayout = QtWidgets.QVBoxLayout(self.settingsTab)
-        logLayout = QtWidgets.QVBoxLayout(self.logTab)
-        self.homeTab.setLayout(self.homeLayout)
-        self.settingsTab.setLayout(settingsLayout)
-        self.logTab.setLayout(logLayout)
+        
+        
         #Create content widgets
         homeContent = QWidget()
         settingsContent = QWidget()
         logContent = QWidget()
-        #Set layout for content widgets
+        
+        self.homeLayout = QtWidgets.QHBoxLayout(self.homeTab)
         self.homeLayout = QtWidgets.QVBoxLayout(homeContent)
-        self.logTab = QtWidgets.QVBoxLayout(logContent)
+        settingsLayout = QtWidgets.QHBoxLayout(self.settingsTab)
+        settingsLayout = QtWidgets.QVBoxLayout(settingsContent)
+        logLayout = QtWidgets.QVBoxLayout(self.logTab)
+        
+        self.homeTab.setLayout(self.homeLayout)
+        self.settingsTab.setLayout(settingsLayout)
+        self.logTab.setLayout(logLayout)
+        self.logTab.setWidget(logContent)
+
         #Add content widgets to scroll areas
         self.homeTab.setWidget(homeContent)
         self.settingsTab.setWidget(settingsContent)
+        self.logTab = QtWidgets.QVBoxLayout(logContent)
         
         ###Defining Setting's Widgets
-        ##Application theme label
+        ##Application settings label
+        self.applicationSettingsLabel = QLabel(self.settingsTab)
+        self.applicationSettingsLabel.setText("<div style ='font-size: 18px;'><b>Application Settings</b></div>")
+        #Application theme label
         self.themeLabel = QLabel(self.settingsTab)
-        self.themeLabel.setText("<div style ='font-size: 18px;'><b>Application Theme</b></div>")
+        self.themeLabel.setText("<div style ='font-size: 13px;'><b>Application Theme</b></div>")
         #Application theme dropdown box
         self.themeDropdown = QComboBox()
         dropdownFill = ["Dark", "Light", "Auto"]
         self.themeDropdown.addItems(dropdownFill)
         self.themeDropdown.currentIndexChanged.connect(self.updateThemeComboBox)
         self.themeDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "app_theme")))
+        #Application size label
+        self.sizeLabel = QLabel(self.settingsTab)
+        self.sizeLabel.setText("<div style ='font-size: 13px;'><b>Default Application Size</b></div>")
         #Startup Height and Width Spinners
         self.widthInput = QSpinBox()
         self.widthInput.setRange(420, 999999)
@@ -190,7 +204,7 @@ class MyWidget(QtWidgets.QWidget):
             self.developerToggle.setStyleSheet("QPushButton {background-color:#904343; color:#dfdfdf}")
         #Application error mode label
         self.errorModeLabel = QLabel(self.settingsTab)
-        self.errorModeLabel.setText("<div style ='font-size: 12px;'><b>Application Error Mode</b></div>")
+        self.errorModeLabel.setText("<div style ='font-size: 13px;'><b>Application Error Mode</b></div>")
         #Application error mode dropdown box
         self.errorDropdown = QComboBox()
         dropdownFill = ["Shutdown", "Alert", "Continue"]
@@ -215,8 +229,10 @@ class MyWidget(QtWidgets.QWidget):
         self.devLogSendButton.clicked.connect(lambda: log(f"[dev] {self.devLogTextArea.toPlainText()}"))
         
         ###Adding Widgets to Settings
+        settingsLayout.addWidget(self.applicationSettingsLabel)
         settingsLayout.addWidget(self.themeLabel)
         settingsLayout.addWidget(self.themeDropdown)
+        settingsLayout.addWidget(self.sizeLabel)
         settingsLayout.addLayout(self.tinyBoxWidthAndHeight)
         settingsLayout.addWidget(self.updateDefaultSizeButton)
         settingsLayout.addSpacing(35)
@@ -255,16 +271,21 @@ class MyWidget(QtWidgets.QWidget):
     def showInstanceContextMenu(self, pos):
         # Identify the button that triggered the context menu
         senderButton = self.sender()
-        log(f"Sender {senderButton}")
+        senderButtonStyleSheet = senderButton.styleSheet()
+        
+        if "#9043437d;" in senderButtonStyleSheet:
+            ssText = "Stop"
+        else:
+            ssText = "Start"
 
         # Create the right-click menu for the instance button
         menu = QMenu(self)
 
         # Define the QMenu buttons
         editAction = menu.addAction("Edit Instance")
-        editAction.triggered.connect(lambda: self.editInstance(senderButton))
-        ssAction = menu.addAction("Stop Instance" if True else "Start Instance")  # Toggle based on instance status
-        ssAction.triggered.connect(lambda: self.editInstance(senderButton))
+        editAction.triggered.connect(lambda: instance_management.editInstance(self, senderButton.property("filepath")))
+        ssAction = menu.addAction(f"{ssText} Instance")  # Toggle based on instance status
+        ssAction.triggered.connect(lambda: instance_management.launchInstance(self, senderButton.property("filepath"), senderButton))
         reloadAction = menu.addAction("Reload Instances")
         reloadAction.triggered.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
 
@@ -313,11 +334,6 @@ class MyWidget(QtWidgets.QWidget):
     @QtCore.Slot(int)
     def updateErrorComboBox(self, value):
         config.updateInConfig("App Settings", "error_handling_mode", ["Shutdown", "Alert", "Continue"][value])
-
-    @QtCore.Slot()
-    #Opens a new test window
-    def editInstances(self):
-        system.openTestWindow(self)
 
     @QtCore.Slot()
     def callAddInstance(self):
@@ -379,6 +395,49 @@ class MyWidget(QtWidgets.QWidget):
         except Exception as e:
             log(f"Failed to create instance: {e}")
             system.openErrorWindow(str(e), "Failed to Create Instance!")
+            
+    @QtCore.Slot(str, str, str, str, str, str)
+    def saveEditedInstance(self, loader, version, name, filePath, lastIcon, icon):
+        try:
+            ##Modifies the icon and files
+            with open(f"{filePath}/about.json", "r") as file:
+                fileLoaded = json.loads(file.read())
+                file.close()
+            with open(f"{filePath}/about.json", "w") as file:
+                name = name.replace('"', '\\"')
+                fileLoaded["name"] = name
+                fileLoaded["version"] = version
+                file.write(json.dumps(fileLoaded))
+                file.close()
+            if lastIcon != icon:
+                shutil.copy(icon, f"{filePath}/icon.{icon.split('.')[-1]}")
+            ##
+            
+            if not app_info_and_update.hasVersionInstalled(version): #Checks to see if the instance version is already installed
+                app_info_and_update.installVersion(version) #Installs if not
+            
+            self.editedInstance.close() #Closes the instance window
+            instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
+        except Exception as e:
+            log(f"Failed to edit instance: {e}")
+            system.openErrorWindow(str(e), "Failed to Edit Instance!")
+            
+    @QtCore.Slot(str, str)
+    def deleteInstance(self,  instancePath):
+        confirmWindow = QMessageBox()
+        confirmWindow.setWindowTitle("Delete Instance")
+        confirmWindow.setText("Are you sure you want to delete this instance?")
+        confirmWindow.setStandardButtons(QMessageBox.No | QMessageBox.Yes)
+        selectedOption = confirmWindow.exec()
+        if selectedOption ==  QMessageBox.Yes:
+            for root, dirs, files in os.walk(instancePath, topdown=False):
+                for name in files:
+                    os.remove(os.path.join(root, name))
+                for name in dirs:
+                    os.rmdir(os.path.join(root, name))
+            os.rmdir(instancePath)
+            self.editedInstance.close()
+            instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances)
         
         
 def onAboutToQuit():
