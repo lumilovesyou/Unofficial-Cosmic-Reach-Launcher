@@ -85,6 +85,8 @@ sys.excepthook = customExceptHook
 class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
+        self.process = []
+        self.editingInstances = False
         #Sets up thread for logs
         self.logUpdateThread = LogReaderThread()
         self.logUpdateThread.logUpdated.connect(self.updateLogs)
@@ -95,7 +97,6 @@ class MyWidget(QtWidgets.QWidget):
         ###Creating Tabs
         #Define Tabs
         self.tabs = QTabWidget(self)
-        self.tabs.currentChanged.connect(self.onTabChanged) #Sends signal when tab changes
         self.homeTab = QScrollArea()
         self.settingsTab = QScrollArea()
         self.logTab = QScrollArea()
@@ -261,6 +262,7 @@ class MyWidget(QtWidgets.QWidget):
         #Hides developer settings
         developer.developerModeWidgets(config.checkInConfig("App Settings", "dev_mode"), self)
         instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances)
+        self.tabs.currentChanged.connect(self.onTabChanged) #Sends signal when tab changes //Moved here so home has been reloaded first
         
         passSelf(self)
         app_info_and_update.downloadAndProcessVersions()
@@ -305,9 +307,13 @@ class MyWidget(QtWidgets.QWidget):
                 pass
         
     def onTabChanged(self, index):
+        #Reset editing instance button
+        self.editingInstances = False
+        self.editInstancesButton.setStyleSheet("")
+        ##
         if self.tabs.tabText(index) == "Logs" and not self.logUpdateThread.isRunning():
             self.logUpdateThread.start() #Starts the thread to update logs
-        else:
+        elif self.logUpdateThread.isRunning():
             self.logUpdateThread.stop() #Stops the thread
     ###
 
@@ -347,9 +353,18 @@ class MyWidget(QtWidgets.QWidget):
             pixmap = QPixmap(filePath)
             scaledPixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.iconLabel.setPixmap(scaledPixmap)
+    
+    @QtCore.Slot(str)
+    def toggleEditingInstances(self, senderButton):
+        self.editingInstances = not self.editingInstances
+        if self.editingInstances:
+            senderButton.setStyleSheet("background-color: grey; color: white;")
+        else:
+            senderButton.setStyleSheet("")
+        
             
     @QtCore.Slot(str, str, str, str)
-    def createInstance(self, loader, version, name, icon):
+    def createInstance(self, loader, version, name, icon, autoUpdate):
         try:
             ##Makes sure file path is valid
             validCharacters = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()-_ ")
@@ -379,9 +394,10 @@ class MyWidget(QtWidgets.QWidget):
             ##
             ##Creates the instance folder, icon, and files
             file_management.createFolder(location)
+            file_management.createFolder(f"{location}/files")
             with open(f"{location}/about.json", "w") as file:
                 name = name.replace('"', '\\"')
-                file.write(f'{{"name": "{name}","version": "{version}","keys": {{}}}}')
+                file.write(f'{{"name": "{name}", "version": "{version}", "keys": {{}}, "autoUpdate": {str(autoUpdate).lower()}}}')
                 file.close()
             if not icon == "assets/app_icons/ucrl_icon.png":
                 shutil.copy(icon, f"{location}/icon.{icon.split('.')[-1]}")
@@ -397,7 +413,7 @@ class MyWidget(QtWidgets.QWidget):
             system.openErrorWindow(str(e), "Failed to Create Instance!")
             
     @QtCore.Slot(str, str, str, str, str, str)
-    def saveEditedInstance(self, loader, version, name, filePath, lastIcon, icon):
+    def saveEditedInstance(self, loader, version, name, filePath, lastIcon, icon, autoUpdate):
         try:
             ##Modifies the icon and files
             with open(f"{filePath}/about.json", "r") as file:
@@ -407,6 +423,7 @@ class MyWidget(QtWidgets.QWidget):
                 name = name.replace('"', '\\"')
                 fileLoaded["name"] = name
                 fileLoaded["version"] = version
+                fileLoaded["autoUpdate"] = autoUpdate
                 file.write(json.dumps(fileLoaded))
                 file.close()
             if lastIcon != icon:

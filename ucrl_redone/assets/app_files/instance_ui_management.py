@@ -78,8 +78,8 @@ def reloadInstances(self, homeLayout, runningInstances):
         addInstance.clicked.connect(self.callAddInstance)
         homeLayout.addWidget(addInstance)
         #Adds "Edit Instances" button
-        editInstances = QPushButton("Edit Instances")
-        editInstances.clicked.connect(lambda: system.openTestWindow(self))
-        homeLayout.addWidget(editInstances)
+        self.editInstancesButton = QPushButton("Edit Instances")
+        self.editInstancesButton.clicked.connect(lambda: self.toggleEditingInstances(self.editInstancesButton))
+        homeLayout.addWidget(self.editInstancesButton)
 
         homeLayout.addStretch()

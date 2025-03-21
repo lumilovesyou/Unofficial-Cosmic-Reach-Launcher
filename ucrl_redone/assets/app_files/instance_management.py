@@ -2,11 +2,12 @@ import os
 import json
 import signal
 import psutil
+import threading
 import subprocess
 import random as ran
 from . import instance_management, file_management, app_info_and_update, web_interaction, system
 from .logs import log, prepareLogs
-from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget
+from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget, QCheckBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
@@ -31,14 +32,16 @@ def loadEnvironmentVars(file_path):
     env.update(env_vars["keys"])
     return env
 
-def runVersion(version, keys, type, instance_ID):
+def runVersion(version, keys, type, instancePath):
     json_file = f"meta/versions/{version}/about.json"
     jar_file = f"meta/versions/{version}/Cosmic-Reach-{version}.jar"
     
     env = loadEnvironmentVars(json_file)
     
+    file_management.checkDirValidity(f"instances/{instancePath}/files/")
+    
     process = subprocess.Popen(
-        ["java", "-jar", str(jar_file)],
+        ["java", "-XstartOnFirstThread", "-jar", str(jar_file), "--save-location", f"instances/{instancePath}/files/"], #Doesn't work on Windows or Linux because of -XstartOnFirstThread, so I'll add a toggle in the future to fix this
         env=env,
         preexec_fn=os.setsid
     )
@@ -60,6 +63,9 @@ def endProcess(self, instancePath, senderButton):
 
 #Higher-level functions
 def launchInstance(self, instancePath, senderButton):
+    if self.editingInstances:
+        editInstance(self, instancePath)
+    else:
         log(f"Instance path: {instancePath}")
         #Gets the button that called
         #Handles the instance launch
@@ -78,9 +84,10 @@ def launchInstance(self, instancePath, senderButton):
                 if check == True:
                     senderButton.setStyleSheet("border-radius: 10px; background-color: #9043437d;")
                     log("Can run version!")
-                    openedProcess = runVersion(str(instanceVersion), "placeholder", "placeholder", "placeholder")
+                    openedProcess = runVersion(str(instanceVersion), "placeholder", "placeholder", instancePath)
                     self.runningInstances.append(instancePath)
                     self.runningInstancesProcess[instancePath] = openedProcess
+                    threading.Thread(target=onSubprocessExit, args=(senderButton,self.runningInstancesProcess[instancePath],), daemon=True).start()
                 else:
                     system.openErrorWindow(f"Failed to load instance! Version {instanceVersion} was missing and is now being installed.")
                     app_info_and_update.installVersion(instanceVersion)
@@ -88,6 +95,9 @@ def launchInstance(self, instancePath, senderButton):
                 log(f"Already running {instancePath}")
                 endProcess(self, instancePath, senderButton)
                 
+def onSubprocessExit(senderButton, process):
+    process.wait()
+    senderButton.setStyleSheet("border-radius: 10px;")
                  
 def addInstance(self):
     #Checking if instance folder exists
@@ -161,14 +171,18 @@ def addInstance(self):
     self.version.addItems(fill)
     layout.addWidget(self.version, 2, 1, 1, 3)
 
+    #Defining QCheckBox
+    self.autoUpdateBox = QCheckBox("Auto Update Instance")
+    layout.addWidget(self.autoUpdateBox, 3, 1, 1, 2)
+
     #Defining PushButton
     self.selectIconButton = QPushButton("Select Icon", self.newInstance)
     self.selectIconButton.clicked.connect(self.selectIcon)
     layout.addWidget(self.selectIconButton, 1, 3, 1, 1)
     
     self.finalizeInstanceButton = QPushButton("Create Instance")
-    self.finalizeInstanceButton.clicked.connect(lambda: self.createInstance( self.loader.currentText(), self.version.currentText(), self.instanceName.text(), self.iconPathEdit.text()))
-    layout.addWidget(self.finalizeInstanceButton, 3, 1, 1, 2)
+    self.finalizeInstanceButton.clicked.connect(lambda: self.createInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), self.iconPathEdit.text(), self.autoUpdateBox.isChecked()))
+    layout.addWidget(self.finalizeInstanceButton, 4, 1, 1, 2)
 
     #Setting Layout
     centralWidget = QWidget()
@@ -188,14 +202,9 @@ def editInstance(self, instancePath):
     if file_management.checkForFile(aboutLocation):
         with open(aboutLocation) as file:
             openedFile = json.loads(file.read())
-            if "name" in openedFile:
-                instanceName = openedFile["name"]
-            else:
-                instanceName = instancePath.split("/")[1]
-            if "version" in openedFile:
-                instanceVersion = openedFile["version"]
-            else:
-                instanceVersion = "Null"
+            instanceName = openedFile["name"] if "name" in openedFile else instancePath.split("/")[1]
+            instanceVersion = openedFile["version"] if "version" in openedFile else "Null"
+            autoUpdate = openedFile["autoUpdate"] if "autoUpdate" in openedFile else False
     else:
         instanceName = instancePath.split("/")[1]
 
@@ -263,6 +272,11 @@ def editInstance(self, instancePath):
         self.version.setCurrentIndex(index)
     layout.addWidget(self.version, 2, 1, 1, 3)
 
+    #Defining QCheckBox
+    self.autoUpdateBox = QCheckBox("Auto Update Instance")
+    self.autoUpdateBox.setChecked(autoUpdate)
+    layout.addWidget(self.autoUpdateBox, 3, 1, 1, 2)
+
     #Defining PushButton
     self.selectIconButton = QPushButton("Select Icon", self.editedInstance)
     self.selectIconButton.clicked.connect(self.selectIcon)
@@ -271,11 +285,11 @@ def editInstance(self, instancePath):
     self.finalizeInstanceButton = QPushButton("Delete Instance")
     self.finalizeInstanceButton.setStyleSheet("background-color: red; color: white;")
     self.finalizeInstanceButton.clicked.connect(lambda: self.deleteInstance(instancePath))
-    layout.addWidget(self.finalizeInstanceButton, 3, 0, 1, 2)
+    layout.addWidget(self.finalizeInstanceButton, 4, 0, 1, 2)
     
     self.finalizeInstanceButton = QPushButton("Save Instance")
-    self.finalizeInstanceButton.clicked.connect(lambda: self.saveEditedInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), instancePath, iconPath, self.iconPathEdit.text()))
-    layout.addWidget(self.finalizeInstanceButton, 3, 2, 1, 2)
+    self.finalizeInstanceButton.clicked.connect(lambda: self.saveEditedInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), instancePath, iconPath, self.iconPathEdit.text(), self.autoUpdateBox.isChecked()))
+    layout.addWidget(self.finalizeInstanceButton, 4, 2, 1, 2)
 
     #Setting Layout
     centralWidget = QWidget()

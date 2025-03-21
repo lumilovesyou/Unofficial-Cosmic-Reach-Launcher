@@ -27,7 +27,8 @@ def downloadAndProcessVersions():
                 
                 writeToFile["versions"] = (listOfVersions)
                 writeToFile["links"] = (listOfVersionsAndLink)
-                writeToFile["latestVersion"] = versionsInfoFile["latest"]["pre_alpha"]
+                writeToFile["latestVersion"] = versionsInfoFile["latest"]
+                print(versionsInfoFile["latest"].keys())
                 json.dump(writeToFile, file)
                 file.close()
     else:
@@ -55,7 +56,7 @@ def installVersion(version: str, source: str = "vanilla"):
             file.write(fileContent)
             file.close()
         with open(f"meta/versions/{version}/about.json", "w") as file:
-            file.write(f'{{"version": "{version}", "type": "vanilla", "file": "Cosmic-Reach-{version}", "keys": []}}')
+            file.write(f'{{"version": "{version}", "type": "vanilla", "file": "Cosmic-Reach-{version}", "keys": {{}}}}')
         checkInstalledVersions()
     else:
         system.openErrorWindow(f"Couldn't install version {version}: Not connected!", "Error")
