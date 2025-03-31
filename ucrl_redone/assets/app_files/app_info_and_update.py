@@ -8,6 +8,7 @@ def returnAppVersion():
 def downloadAndProcessVersions():
     if web_interaction.checkConnection():
         versionsInfoFile = web_interaction.getFile("CRModders", "CosmicArchive", "versions.json")
+        latestVersionFile = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt")
         if versionsInfoFile:
             versionsInfoFile = json.loads(versionsInfoFile)
             writeToFile = {}
@@ -27,8 +28,9 @@ def downloadAndProcessVersions():
                 
                 writeToFile["versions"] = (listOfVersions)
                 writeToFile["links"] = (listOfVersionsAndLink)
-                writeToFile["latestVersion"] = versionsInfoFile["latest"]
-                print(versionsInfoFile["latest"].keys())
+                writeToFile["latestVersions"] = versionsInfoFile["latest"]
+                writeToFile["absLatestVersion"] = latestVersionFile.split(" ")[0]
+                
                 json.dump(writeToFile, file)
                 file.close()
     else:

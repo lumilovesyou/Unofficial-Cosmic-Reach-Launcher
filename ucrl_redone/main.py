@@ -217,6 +217,15 @@ class MyWidget(QtWidgets.QWidget):
         self.relistButton.clicked.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
         self.checkVersionsButton = QPushButton("Check Installed Versions")
         self.checkVersionsButton.clicked.connect(lambda: app_info_and_update.checkInstalledVersions())
+        #Xstart dropdown label
+        self.xStartDropdownLabel = QLabel(self.settingsTab)
+        self.xStartDropdownLabel.setText("<div style ='font-size: 13px;'><b>XstartOnFirstThread Mode</b></div>")
+        #Xstart dropdown
+        self.xStartDropdown = QComboBox()
+        dropdownFill = ["Auto", "Enabled", "Disabled"]
+        self.xStartDropdown.addItems(dropdownFill)
+        self.xStartDropdown.currentIndexChanged.connect(self.updateXStartComboBox)
+        self.xStartDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "xStart")))
         
         ###Defining Log's Widgets
         #Log text area
@@ -250,6 +259,8 @@ class MyWidget(QtWidgets.QWidget):
         settingsLayout.addWidget(self.developerToggle)
         settingsLayout.addWidget(self.errorModeLabel)
         settingsLayout.addWidget(self.errorDropdown)
+        settingsLayout.addWidget(self.xStartDropdownLabel)
+        settingsLayout.addWidget(self.xStartDropdown)
         settingsLayout.addWidget(self.relistButton)
         settingsLayout.addWidget(self.checkVersionsButton)
         settingsLayout.addStretch()
@@ -288,6 +299,8 @@ class MyWidget(QtWidgets.QWidget):
         editAction.triggered.connect(lambda: instance_management.editInstance(self, senderButton.property("filepath")))
         ssAction = menu.addAction(f"{ssText} Instance")  # Toggle based on instance status
         ssAction.triggered.connect(lambda: instance_management.launchInstance(self, senderButton.property("filepath"), senderButton))
+        openInstanceFolder = menu.addAction("Open Instance Folder")
+        openInstanceFolder.triggered.connect(lambda: instance_management.openInstanceFolder(senderButton.property("filepath")))
         reloadAction = menu.addAction("Reload Instances")
         reloadAction.triggered.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
 
@@ -340,6 +353,10 @@ class MyWidget(QtWidgets.QWidget):
     @QtCore.Slot(int)
     def updateErrorComboBox(self, value):
         config.updateInConfig("App Settings", "error_handling_mode", ["Shutdown", "Alert", "Continue"][value])
+        
+    @QtCore.Slot(int)
+    def updateXStartComboBox(self, value):
+        config.updateInConfig("App Settings", "xStart", ["Auto", "Enabled", "Disabled"][value])
 
     @QtCore.Slot()
     def callAddInstance(self):
@@ -361,7 +378,7 @@ class MyWidget(QtWidgets.QWidget):
             senderButton.setStyleSheet("background-color: grey; color: white;")
         else:
             senderButton.setStyleSheet("")
-        
+
             
     @QtCore.Slot(str, str, str, str)
     def createInstance(self, loader, version, name, icon, autoUpdate):
@@ -380,11 +397,6 @@ class MyWidget(QtWidgets.QWidget):
             ##
             ##Checks if the instance name is taken
             if file_management.checkForDir(location):
-                '''
-                log(f"Couldn't make instance \"{filePath}\" because it already exists!")
-                system.openErrorWindow(self, f"Couldn't make instance \"{filePath}\" because it already exists!", "Error")
-                return
-                '''
                 locationAssure = location
                 i = 0
                 while file_management.checkForDir(locationAssure):

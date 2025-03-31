@@ -9,9 +9,10 @@ def checkForConfig():
         config["App Settings"] = {
             "app_theme": "Auto",
             "dev_mode": "False",
-            "error_handling_mode": "Alert",
             "defaultWidth": "800",
-            "defaultHeight": "600"
+            "defaultHeight": "600",
+            "error_handling_mode": "Alert",
+            "xStart": "Auto"
         }
         with open("./config.ini", "w") as configfile:
             config.write(configfile)

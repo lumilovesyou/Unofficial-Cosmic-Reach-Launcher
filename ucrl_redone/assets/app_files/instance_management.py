@@ -5,11 +5,11 @@ import psutil
 import threading
 import subprocess
 import random as ran
-from . import instance_management, file_management, app_info_and_update, web_interaction, system
+from . import instance_management, file_management, app_info_and_update, web_interaction, system, config
 from .logs import log, prepareLogs
 from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget, QCheckBox
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QPixmap, QDesktopServices
 
 def checkForVersion(version):
     file = f"meta/versions/{version}/about.json"
@@ -25,6 +25,11 @@ def checkForVersion(version):
     except:
         return f"Couldn't locate file {file}"
     
+def openInstanceFolder(instancePath):
+    file_url = QUrl.fromLocalFile(f"{os.getcwd()}/instances/{instancePath}")
+    QDesktopServices.openUrl(file_url)
+    log(f"Opening instance folder {os.getcwd()}/instances/{instancePath}")
+    
 def loadEnvironmentVars(file_path):
     with open(file_path, "r") as file:
             env_vars = json.loads(file.read())
@@ -39,12 +44,19 @@ def runVersion(version, keys, type, instancePath):
     env = loadEnvironmentVars(json_file)
     
     file_management.checkDirValidity(f"instances/{instancePath}/files/")
-    
-    process = subprocess.Popen(
-        ["java", "-XstartOnFirstThread", "-jar", str(jar_file), "--save-location", f"instances/{instancePath}/files/"], #Doesn't work on Windows or Linux because of -XstartOnFirstThread, so I'll add a toggle in the future to fix this
-        env=env,
-        preexec_fn=os.setsid
-    )
+    xStartMode = config.checkInConfig("App Settings", "xStart")
+    if (system.returnOsName() == "Darwin" and xStartMode == "Auto") or xStartMode == "Enabled":
+        process = subprocess.Popen( #I also noticed that you can no longer stop the process by clicking on the instance icon
+            ["java", "-XstartOnFirstThread", "-jar", str(jar_file), "--save-location", f"instances/{instancePath}/files/"], #Doesn't work on Windows or Linux because of -XstartOnFirstThread, so I'll add a toggle in the future to fix this
+            env=env,
+            preexec_fn=os.setsid
+        )
+    else:
+        process = subprocess.Popen(
+            ["java", "-jar", str(jar_file), "--save-location", f"instances/{instancePath}/files/"],
+            env=env,
+            preexec_fn=os.setsid
+        )
     
     log(f"Subprocess started with PID {process.pid}")
     return(process)
@@ -55,8 +67,7 @@ def endProcess(self, instancePath, senderButton):
     processChildren = process.children(True) #Gets the children process to properly kill
     for process in processChildren:
         process.send_signal(signal.SIGTERM)
-    self.runningInstancesProcess.pop(instancePath)
-    self.runningInstances.remove(instancePath)
+    process.send_signal(signal.SIGTERM)
     senderButton.setStyleSheet("border-radius: 10px;")
     
     log(f"Subprocess terminated with PID {process.pid}")
@@ -67,19 +78,34 @@ def launchInstance(self, instancePath, senderButton):
         editInstance(self, instancePath)
     else:
         log(f"Instance path: {instancePath}")
-        #Gets the button that called
-        #Handles the instance launch
-        prepareLogs(f"instances/{instancePath}/logs")
-        log(f"Launching instance: {instancePath}", f"instances/{instancePath}/logs")
         filePath = "instances/" + instancePath + "/about.json"
         if os.path.exists(filePath):
         #Checks if file exists
             if not instancePath in self.runningInstances:
                 with open(filePath, "r") as file:
-                    instanceVersion = json.loads(file.read())
+                    instanceInfo = json.loads(file.read())
                     file.close()
-                instanceVersion = instanceVersion["version"]
-                log(instanceVersion)
+                filePath = f"instances/{filePath.split("/")[1]}"
+                instanceVersion = instanceInfo["version"]
+                instanceUpdatePreference = instanceInfo["autoUpdate"] if "autoUpdate" in instanceInfo else False
+                if instanceUpdatePreference:
+                    with open("meta/version.json", "r") as file:
+                        latestVersion = json.loads(file.read())["absLatestVersion"]
+                        file.close()
+                    if instanceVersion != latestVersion:
+                        log(f"Updating {instancePath}")
+                        with open(f"{filePath}/about.json", "r") as file:
+                            fileLoaded = json.loads(file.read())
+                            file.close()
+                        with open(f"{filePath}/about.json", "w") as file:
+                            fileLoaded["version"] = latestVersion
+                            file.write(json.dumps(fileLoaded))
+                            file.close()
+                        instanceVersion = latestVersion
+                        if not app_info_and_update.hasVersionInstalled(latestVersion):
+                            app_info_and_update.installVersion(latestVersion)
+                    
+                log(f"Instance {instancePath}'s version is {instanceVersion}")
                 check = checkForVersion(instanceVersion)
                 if check == True:
                     senderButton.setStyleSheet("border-radius: 10px; background-color: #9043437d;")
@@ -87,7 +113,7 @@ def launchInstance(self, instancePath, senderButton):
                     openedProcess = runVersion(str(instanceVersion), "placeholder", "placeholder", instancePath)
                     self.runningInstances.append(instancePath)
                     self.runningInstancesProcess[instancePath] = openedProcess
-                    threading.Thread(target=onSubprocessExit, args=(senderButton,self.runningInstancesProcess[instancePath],), daemon=True).start()
+                    threading.Thread(target=onSubprocessExit, args=(self, senderButton,self.runningInstancesProcess[instancePath],instancePath,), daemon=True).start()
                 else:
                     system.openErrorWindow(f"Failed to load instance! Version {instanceVersion} was missing and is now being installed.")
                     app_info_and_update.installVersion(instanceVersion)
@@ -95,9 +121,11 @@ def launchInstance(self, instancePath, senderButton):
                 log(f"Already running {instancePath}")
                 endProcess(self, instancePath, senderButton)
                 
-def onSubprocessExit(senderButton, process):
+def onSubprocessExit(self, senderButton, process, instancePath):
     process.wait()
     senderButton.setStyleSheet("border-radius: 10px;")
+    self.runningInstancesProcess.pop(instancePath)
+    self.runningInstances.remove(instancePath)
                  
 def addInstance(self):
     #Checking if instance folder exists
@@ -152,7 +180,6 @@ def addInstance(self):
     """
     latestVersion = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt")
     if latestVersion:
-        print(latestVersion)
         latestVersion = latestVersion.split(" ")[0]
     
     #app_info_and_update.downloadAndProcessVersions()
