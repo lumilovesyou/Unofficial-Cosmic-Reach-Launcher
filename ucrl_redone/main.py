@@ -8,7 +8,8 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import *
 from assets.app_files import config, developer, app_info_and_update, web_interaction
-from assets.app_files.logs import prepareLogs, log, passSelf, systemInfo
+from assets.app_files.logs import prepareLogs, log, passSelf, systemInfo, removeOldLogs
+from assets.app_files.instance_importing import crlauncher, file
 from assets.app_files import file_management
 from assets.app_files import instance_management
 from assets.app_files import system
@@ -51,8 +52,8 @@ class LogReaderThread(QThread):
                         file.seek(0, 2)
                     QtCore.QThread.msleep(500)
         except Exception as e:
-            log("Failed to start log tab!")
-            log(f"Error reading log file: {e}")
+            log("%eFailed to start log tab!")
+            log(f"%eError reading log file: {e}")
             self.logUpdated.emit(f"Error reading log file: {e}")
         
     def stop(self):
@@ -61,10 +62,10 @@ class LogReaderThread(QThread):
 
 def customExceptHook(type, value, tb):
     formatted_traceback = ''.join(traceback.format_exception(type, value, tb)) #Tb stands for Traceback
-    log(f"Unhandled exception:\nType: {type.__name__}\nValue: {value}\nTraceback:\n{formatted_traceback}")
+    log(f"%eUnhandled exception:\nType: {type.__name__}\nValue: {value}\nTraceback:\n{formatted_traceback}")
     
     error_handling_mode = config.checkInConfig("App Settings", "error_handling_mode")
-    log(f"Error Handling Mode: {error_handling_mode}")
+    log(f"%iError Handling Mode: {error_handling_mode}")
     
     if error_handling_mode == "Shutdown":
         #Shuts down the application
@@ -85,7 +86,9 @@ sys.excepthook = customExceptHook
 class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
+        
         self.process = []
+        self.importCheckBoxes = 0
         self.editingInstances = False
         #Sets up thread for logs
         self.logUpdateThread = LogReaderThread()
@@ -155,10 +158,10 @@ class MyWidget(QtWidgets.QWidget):
         #Startup Height and Width Spinners
         self.widthInput = QSpinBox()
         self.widthInput.setRange(420, 999999)
-        self.widthInput.setValue(int(config.checkInConfig("App Settings", "defaultWidth")))
+        self.widthInput.setValue(int(config.checkInConfig("App Settings", "default_width")))
         self.heightInput = QSpinBox()
         self.heightInput.setRange(260, 999999)
-        self.heightInput.setValue(int(config.checkInConfig("App Settings", "defaultHeight")))
+        self.heightInput.setValue(int(config.checkInConfig("App Settings", "default_height")))
         #A Horizontal Box For the Spinners
         self.tinyBoxWidthAndHeight = QHBoxLayout()
         self.tinyBoxWidthAndHeight.addWidget(self.widthInput)
@@ -225,7 +228,16 @@ class MyWidget(QtWidgets.QWidget):
         dropdownFill = ["Auto", "Enabled", "Disabled"]
         self.xStartDropdown.addItems(dropdownFill)
         self.xStartDropdown.currentIndexChanged.connect(self.updateXStartComboBox)
-        self.xStartDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "xStart")))
+        self.xStartDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("Instance Settings", "x_start")))
+        #Remove errorless logs dropdown label
+        self.remELDropdownLabel = QLabel(self.settingsTab)
+        self.remELDropdownLabel.setText("<div style ='font-size: 13px;'><b>Remove Errorless Logs</b></div>")
+        #Remove errorless logs dropdown
+        self.remEL = QComboBox()
+        dropdownFill = ["Enabled", "Disabled"]
+        self.remEL.addItems(dropdownFill)
+        self.remEL.currentIndexChanged.connect(self.updateRemELComboBox)
+        self.remEL.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "rem_errorless_logs")))
         
         ###Defining Log's Widgets
         #Log text area
@@ -261,6 +273,8 @@ class MyWidget(QtWidgets.QWidget):
         settingsLayout.addWidget(self.errorDropdown)
         settingsLayout.addWidget(self.xStartDropdownLabel)
         settingsLayout.addWidget(self.xStartDropdown)
+        settingsLayout.addWidget(self.remELDropdownLabel)
+        settingsLayout.addWidget(self.remEL)
         settingsLayout.addWidget(self.relistButton)
         settingsLayout.addWidget(self.checkVersionsButton)
         settingsLayout.addStretch()
@@ -279,6 +293,9 @@ class MyWidget(QtWidgets.QWidget):
         app_info_and_update.downloadAndProcessVersions()
         if not web_interaction.checkConnection():
             log("%e No connection!")
+        
+        if config.checkInConfig("App Settings", "rem_errorless_logs") == "Enabled":
+            removeOldLogs()
     
     # I tried to move this to instance_ui_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
     def showInstanceContextMenu(self, pos):
@@ -299,6 +316,8 @@ class MyWidget(QtWidgets.QWidget):
         editAction.triggered.connect(lambda: instance_management.editInstance(self, senderButton.property("filepath")))
         ssAction = menu.addAction(f"{ssText} Instance")  # Toggle based on instance status
         ssAction.triggered.connect(lambda: instance_management.launchInstance(self, senderButton.property("filepath"), senderButton))
+        exportInstance = menu.addAction("Export Instance")
+        exportInstance.triggered.connect(lambda: exportInstance(self, senderButton.property("filepath")))
         openInstanceFolder = menu.addAction("Open Instance Folder")
         openInstanceFolder.triggered.connect(lambda: instance_management.openInstanceFolder(senderButton.property("filepath")))
         reloadAction = menu.addAction("Reload Instances")
@@ -341,8 +360,8 @@ class MyWidget(QtWidgets.QWidget):
         
     @QtCore.Slot()
     def updateDefaultStartupSize(self):
-        config.updateInConfig("App Settings", "defaultWidth", self.widthInput.value())
-        config.updateInConfig("App Settings", "defaultHeight", self.heightInput.value())
+        config.updateInConfig("App Settings", "default_width", self.widthInput.value())
+        config.updateInConfig("App Settings", "default_height", self.heightInput.value())
 
     @QtCore.Slot(int)
     #Updates theme when user selects a different one
@@ -356,11 +375,19 @@ class MyWidget(QtWidgets.QWidget):
         
     @QtCore.Slot(int)
     def updateXStartComboBox(self, value):
-        config.updateInConfig("App Settings", "xStart", ["Auto", "Enabled", "Disabled"][value])
+        config.updateInConfig("App Settings", "x_start", ["Auto", "Enabled", "Disabled"][value])
+        
+    @QtCore.Slot(int)
+    def updateRemELComboBox(self, value):
+        config.updateInConfig("App Settings", "rem_errorless_logs", ["Enabled", "Disabled"][value])
 
     @QtCore.Slot()
     def callAddInstance(self):
         instance_management.addInstance(self)
+        
+    @QtCore.Slot()
+    def importInstancesWindow(self):
+        instance_management.importInstance(self)
         
     @QtCore.Slot()
     def selectIcon(self):
@@ -371,6 +398,21 @@ class MyWidget(QtWidgets.QWidget):
             scaledPixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.iconLabel.setPixmap(scaledPixmap)
     
+    @QtCore.Slot()
+    def selectPath(self):
+        folderPath = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folderPath:
+            self.filePath.setText(folderPath)
+            
+    @QtCore.Slot()
+    def updateCrlCheckboxes(self, path):
+        instance_management.updateCrlCheckboxes(self, path)
+    
+    @QtCore.Slot()
+    def importCheckBoxClicked(self, state):
+        self.importCheckBoxes += state
+        self.finaliseInstanceButton.setDisabled(not state > 0)
+    
     @QtCore.Slot(str)
     def toggleEditingInstances(self, senderButton):
         self.editingInstances = not self.editingInstances
@@ -379,12 +421,22 @@ class MyWidget(QtWidgets.QWidget):
         else:
             senderButton.setStyleSheet("")
 
+    @QtCore.Slot()
+    def importInstances(self):
+        instanceNames = []
+        for i in range(self.tescrlLayout.count()):
+            item = self.tescrlLayout.itemAt(i).widget()
+            if isinstance(item, QCheckBox):
+                if item.isChecked():
+                    instanceNames.append(item.text())
+        if len(instanceNames) > 0:
+            crlauncher.importCrlInstances(self, self.filePath.text(), instanceNames)
             
     @QtCore.Slot(str, str, str, str)
-    def createInstance(self, loader, version, name, icon, autoUpdate):
+    def createInstance(self, loader, version, name, icon, autoUpdate, copyFrom: str, noWindow: bool = False):
         try:
             ##Makes sure file path is valid
-            validCharacters = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()-_ ")
+            validCharacters = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()-_. ")
             filePath = list(name)
             for i in range(len(filePath)):
                 if not filePath[i] in validCharacters:
@@ -406,23 +458,32 @@ class MyWidget(QtWidgets.QWidget):
             ##
             ##Creates the instance folder, icon, and files
             file_management.createFolder(location)
-            file_management.createFolder(f"{location}/files")
+            if copyFrom:
+                shutil.copytree(f"{copyFrom}", f"{location}/files")
+            else:
+                file_management.createFolder(f"{location}/files")
             with open(f"{location}/about.json", "w") as file:
                 name = name.replace('"', '\\"')
                 file.write(f'{{"name": "{name}", "version": "{version}", "keys": {{}}, "autoUpdate": {str(autoUpdate).lower()}}}')
                 file.close()
-            if not icon == "assets/app_icons/ucrl_icon.png":
+                
+            if icon.split("cosmic_logo_x32.png") != icon: #HQ Cosmic Reach Launcher (by TheEntropyShard) Icon, identical to the Cosmic Reach icon
+                shutil.copy("assets/app_icons/theentropyshard_crl_icon.png", f"{location}/icon.png")
+            elif not icon == "assets/app_icons/ucrl_icon.png": #Default icon
                 shutil.copy(icon, f"{location}/icon.{icon.split('.')[-1]}")
             ##
             
             if not app_info_and_update.hasVersionInstalled(version): #Checks to see if the instance version is already installed
                 app_info_and_update.installVersion(version) #Installs if not
             
-            self.newInstance.close() #Closes the instance window
+            if not noWindow:
+                self.newInstance.close() #Closes the instance window
+            
             instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
         except Exception as e:
             log(f"Failed to create instance: {e}")
             system.openErrorWindow(str(e), "Failed to Create Instance!")
+        
             
     @QtCore.Slot(str, str, str, str, str, str)
     def saveEditedInstance(self, loader, version, name, filePath, lastIcon, icon, autoUpdate):
@@ -478,7 +539,7 @@ if __name__ == "__main__":
     config.updateTheme()
 
     window = MyWidget()
-    window.resize(int(config.checkInConfig("App Settings", "defaultWidth")), int(config.checkInConfig("App Settings", "defaultHeight")))
+    window.resize(int(config.checkInConfig("App Settings", "default_width")), int(config.checkInConfig("App Settings", "default_height")))
     window.setMinimumSize(420, 260)
     #Checks and creates files
     file_management.checkDirValidity("instances")

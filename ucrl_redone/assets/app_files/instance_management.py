@@ -6,8 +6,9 @@ import threading
 import subprocess
 import random as ran
 from . import instance_management, file_management, app_info_and_update, web_interaction, system, config
+from .instance_importing import crlauncher
 from .logs import log, prepareLogs
-from PySide6.QtWidgets import QMainWindow, QGridLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget, QCheckBox
+from PySide6.QtWidgets import *
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QPixmap, QDesktopServices
 
@@ -207,9 +208,9 @@ def addInstance(self):
     self.selectIconButton.clicked.connect(self.selectIcon)
     layout.addWidget(self.selectIconButton, 1, 3, 1, 1)
     
-    self.finalizeInstanceButton = QPushButton("Create Instance")
-    self.finalizeInstanceButton.clicked.connect(lambda: self.createInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), self.iconPathEdit.text(), self.autoUpdateBox.isChecked()))
-    layout.addWidget(self.finalizeInstanceButton, 4, 1, 1, 2)
+    self.finaliseInstanceButton = QPushButton("Create Instance")
+    self.finaliseInstanceButton.clicked.connect(lambda: self.createInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), self.iconPathEdit.text(), self.autoUpdateBox.isChecked()))
+    layout.addWidget(self.finaliseInstanceButton, 4, 1, 1, 2)
 
     #Setting Layout
     centralWidget = QWidget()
@@ -217,6 +218,91 @@ def addInstance(self):
     self.newInstance.setCentralWidget(centralWidget)
     centralWidget.setContentsMargins(10, 10, 10, 10)
     self.newInstance.show()
+    
+def importInstance(self):
+    #Checking if instance folder exists
+    file_management.checkDirValidity("/instances")
+
+    #Defining Window
+    self.importInstance = QMainWindow()
+    self.importInstance.setWindowTitle("Import Instances")
+    self.importInstance.setMinimumSize(530, 300)
+    self.importInstance.setMaximumSize(530, 300)
+    
+    #Layout
+    layout = QVBoxLayout()
+    layout.setAlignment(Qt.AlignTop)
+    
+    #Tabs
+    self.importInstanceTabs = QTabWidget(self)
+    self.importInstanceFromFile = QScrollArea()
+    self.importInstanceTESCRL = QScrollArea() #TheEntropyShard Cosmic Reach Launcher
+    self.importInstanceTESCRL.setWidgetResizable(True)
+    
+    ##CRLauncher Tab Layout
+    contentWidget = QWidget()
+    self.tescrlLayout = QVBoxLayout(contentWidget)
+    instancesFolder = crlauncher.findInstancesFolder()
+    
+    self.filePath = QLineEdit("Placeholder Path")
+    self.filePath.setText(instancesFolder)
+    self.filePath.textChanged.connect(self.updateCrlCheckboxes)
+    
+    filePathSelect = QPushButton("Select Path")
+    filePathSelect.clicked.connect(self.selectPath)
+    
+    self.tescrlLayout.addWidget(self.filePath)
+    self.tescrlLayout.addWidget(filePathSelect)
+    
+    self.importInstanceTESCRL.setWidget(contentWidget)
+    
+    updateCrlCheckboxes(self, instancesFolder)
+    self.tescrlLayout.addStretch()
+    ##
+    
+    #Add tabs to window
+    self.importInstanceTabs.addTab(self.importInstanceFromFile, "From File")
+    self.importInstanceTabs.addTab(self.importInstanceTESCRL, "Cosmic Reach Launcher")
+    layout.addWidget(self.importInstanceTabs)
+    
+    #Import button
+    self.finaliseInstanceButton = QPushButton("Import Selected")
+    self.finaliseInstanceButton.setDisabled(True)
+    self.finaliseInstanceButton.clicked.connect(self.importInstances)
+    layout.addWidget(self.finaliseInstanceButton)
+
+    #Setting Layout
+    centralWidget = QWidget()
+    centralWidget.setLayout(layout)
+    self.importInstance.setCentralWidget(centralWidget)
+    self.importInstance.show()
+    
+def updateCrlCheckboxes(self, path):
+        for i in reversed(range(self.tescrlLayout.count())):
+            item = self.tescrlLayout.itemAt(i)
+
+            if item.widget() and isinstance(item.widget(), (QCheckBox, QLabel)):
+                checkbox = item.widget()
+                self.tescrlLayout.removeWidget(checkbox)
+                checkbox.deleteLater()
+
+            elif item.spacerItem():
+                self.tescrlLayout.removeItem(item)
+                
+        if os.path.isdir(path):
+            crlauncherInstances = crlauncher.findInstances(path, True)
+            crlauncherInstances = [] if crlauncherInstances == None else crlauncherInstances
+            if len(crlauncherInstances) < 1:
+                self.tescrlEmpty = QLabel("No Instances Found")
+                self.tescrlLayout.insertWidget(self.tescrlLayout.count(), self.tescrlEmpty)
+            else:
+                for i in range(len(crlauncherInstances)):
+                    checkBox = QCheckBox(crlauncherInstances[i])
+                    checkBox.clicked.connect(self.importCheckBoxClicked)
+                    self.tescrlLayout.insertWidget(self.tescrlLayout.count(), checkBox)
+        else:
+            self.tescrlEmpty = QLabel("No Instances Found")
+            self.tescrlLayout.insertWidget(self.tescrlLayout.count(), self.tescrlEmpty)
     
 def editInstance(self, instancePath):
     #Checking if instance's folder exists
@@ -309,14 +395,14 @@ def editInstance(self, instancePath):
     self.selectIconButton.clicked.connect(self.selectIcon)
     layout.addWidget(self.selectIconButton, 1, 3, 1, 1)
     
-    self.finalizeInstanceButton = QPushButton("Delete Instance")
-    self.finalizeInstanceButton.setStyleSheet("background-color: red; color: white;")
-    self.finalizeInstanceButton.clicked.connect(lambda: self.deleteInstance(instancePath))
-    layout.addWidget(self.finalizeInstanceButton, 4, 0, 1, 2)
+    self.finaliseInstanceButton = QPushButton("Delete Instance")
+    self.finaliseInstanceButton.setStyleSheet("background-color: red; color: white;")
+    self.finaliseInstanceButton.clicked.connect(lambda: self.deleteInstance(instancePath))
+    layout.addWidget(self.finaliseInstanceButton, 4, 0, 1, 2)
     
-    self.finalizeInstanceButton = QPushButton("Save Instance")
-    self.finalizeInstanceButton.clicked.connect(lambda: self.saveEditedInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), instancePath, iconPath, self.iconPathEdit.text(), self.autoUpdateBox.isChecked()))
-    layout.addWidget(self.finalizeInstanceButton, 4, 2, 1, 2)
+    self.finaliseInstanceButton = QPushButton("Save Instance")
+    self.finaliseInstanceButton.clicked.connect(lambda: self.saveEditedInstance(self.loader.currentText(), self.version.currentText(), self.instanceName.text(), instancePath, iconPath, self.iconPathEdit.text(), self.autoUpdateBox.isChecked()))
+    layout.addWidget(self.finaliseInstanceButton, 4, 2, 1, 2)
 
     #Setting Layout
     centralWidget = QWidget()

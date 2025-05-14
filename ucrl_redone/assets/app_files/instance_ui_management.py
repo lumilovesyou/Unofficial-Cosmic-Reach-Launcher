@@ -77,6 +77,10 @@ def reloadInstances(self, homeLayout, runningInstances):
         addInstance = QPushButton("Add Instance")
         addInstance.clicked.connect(self.callAddInstance)
         homeLayout.addWidget(addInstance)
+        #Adds "Import Instances" button
+        importInstance = QPushButton("Import Instances")
+        importInstance.clicked.connect(self.importInstancesWindow)
+        homeLayout.addWidget(importInstance)
         #Adds "Edit Instances" button
         self.editInstancesButton = QPushButton("Edit Instances")
         self.editInstancesButton.clicked.connect(lambda: self.toggleEditingInstances(self.editInstancesButton))

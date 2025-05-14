@@ -9,10 +9,13 @@ def checkForConfig():
         config["App Settings"] = {
             "app_theme": "Auto",
             "dev_mode": "False",
-            "defaultWidth": "800",
-            "defaultHeight": "600",
+            "default_width": "800",
+            "default_height": "600",
             "error_handling_mode": "Alert",
-            "xStart": "Auto"
+            "rem_errorless_logs": "Enabled"
+        }
+        config["Instance Settings"] = {
+            "x_start": "Auto"
         }
         with open("./config.ini", "w") as configfile:
             config.write(configfile)

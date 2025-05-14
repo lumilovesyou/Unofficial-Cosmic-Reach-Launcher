@@ -1,4 +1,4 @@
-#pip install -r requirements.txt --ignore-requires-python 
+#pip3 install -r requirements.txt --ignore-requires-python 
 darkdetect==0.7.1
 psutil==7.0.0
 PyGithub==2.6.1

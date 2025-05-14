@@ -16,9 +16,9 @@ def log(text: str, filePath: str = "logs"):
     date = dt.datetime.now()
     identifier = str(text)[0:2]
     if identifier == "%e":
-        message = f"%e [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}"
+        message = f"%e [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}" #Error
     elif identifier == "%i":
-        message = f"%i [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}"
+        message = f"%i [{date.hour}.{date.minute}.{date.second}] {caller_file}: {text[2:len(text)]}" #Important
     else:
         message = f"[{date.hour}.{date.minute}.{date.second}] {caller_file}: {text}"
     with open(f"{filePath}/latest.log", "a") as file:
@@ -42,6 +42,21 @@ def checkLatest(filePath: str = "logs"):
         date = dt.datetime.now()
         with open(f"{filePath}/latest.log", "w") as file:
             file.write(f"{date.year}-{date.month}-{date.day} at {date.hour}.{date.minute}.{date.second}\n")
+  
+def removeOldLogs(filePath: str = "logs"):
+    for i in os.listdir(filePath):
+        if i != "latest.log":
+            if logContainsError(f"{filePath}/{i}"):
+                discardLog(f"{filePath}/{i}")
+          
+def logContainsError(filePath: str = "logs"):
+    if filePath.split(".DS_Store")[0] == filePath:
+        with open(filePath, "r") as file:
+            output = file.read()
+        return output.split("%e")[0] == output
+
+def discardLog(filePath: str = "logs"):
+    os.remove(filePath)
 
 def prepareLogs(filePath: str = "logs"):
     cleanLatest(filePath)

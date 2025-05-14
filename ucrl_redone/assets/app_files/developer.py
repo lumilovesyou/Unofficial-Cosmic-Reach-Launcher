@@ -23,6 +23,8 @@ def developerModeWidgets(visibility, self):
                 self.errorDropdown.hide()
                 self.xStartDropdownLabel.hide()
                 self.xStartDropdown.hide()
+                self.remELDropdownLabel.hide()
+                self.remEL.hide()
                 self.devLogTextArea.hide()
                 self.devLogSendButton.hide()
             else:
@@ -32,5 +34,7 @@ def developerModeWidgets(visibility, self):
                 self.errorDropdown.show()
                 self.xStartDropdownLabel.show()
                 self.xStartDropdown.show()
+                self.remELDropdownLabel.show()
+                self.remEL.show()
                 self.devLogTextArea.show()
                 self.devLogSendButton.show()
