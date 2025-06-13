@@ -13,7 +13,6 @@ from assets.app_files.instance_importing import crlauncher, file
 from assets.app_files import file_management
 from assets.app_files import instance_management
 from assets.app_files import system
-from assets.app_files import instance_ui_management
 
 prepareLogs()
 
@@ -217,7 +216,7 @@ class MyWidget(QtWidgets.QWidget):
         self.errorDropdown.setCurrentIndex((dropdownFill).index(config.checkInConfig("App Settings", "error_handling_mode")))
         #Developer buttons
         self.relistButton = QPushButton("Reload Instances")
-        self.relistButton.clicked.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
+        self.relistButton.clicked.connect(lambda: instance_management.reloadInstances(self, self.homeLayout, self.runningInstances))
         self.checkVersionsButton = QPushButton("Check Installed Versions")
         self.checkVersionsButton.clicked.connect(lambda: app_info_and_update.checkInstalledVersions())
         #Xstart dropdown label
@@ -286,7 +285,7 @@ class MyWidget(QtWidgets.QWidget):
         
         #Hides developer settings
         developer.developerModeWidgets(config.checkInConfig("App Settings", "dev_mode"), self)
-        instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances)
+        instance_management.reloadInstances(self, self.homeLayout, self.runningInstances)
         self.tabs.currentChanged.connect(self.onTabChanged) #Sends signal when tab changes //Moved here so home has been reloaded first
         
         passSelf(self)
@@ -297,7 +296,7 @@ class MyWidget(QtWidgets.QWidget):
         if config.checkInConfig("App Settings", "rem_errorless_logs") == "Enabled":
             removeOldLogs()
     
-    # I tried to move this to instance_ui_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
+    # I tried to move this to instance_management but it didn't work. I'll probably revisit that in the future and figure it out. Or not.
     def showInstanceContextMenu(self, pos):
         # Identify the button that triggered the context menu
         senderButton = self.sender()
@@ -317,11 +316,11 @@ class MyWidget(QtWidgets.QWidget):
         ssAction = menu.addAction(f"{ssText} Instance")  # Toggle based on instance status
         ssAction.triggered.connect(lambda: instance_management.launchInstance(self, senderButton.property("filepath"), senderButton))
         exportInstance = menu.addAction("Export Instance")
-        exportInstance.triggered.connect(lambda: exportInstance(self, senderButton.property("filepath")))
+        exportInstance.triggered.connect(lambda: instance_management.exportInstance(self, senderButton.property("filepath")))
         openInstanceFolder = menu.addAction("Open Instance Folder")
         openInstanceFolder.triggered.connect(lambda: instance_management.openInstanceFolder(senderButton.property("filepath")))
         reloadAction = menu.addAction("Reload Instances")
-        reloadAction.triggered.connect(lambda: instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances))
+        reloadAction.triggered.connect(lambda: instance_management.reloadInstances(self, self.homeLayout, self.runningInstances))
 
         # Show the QMenu at the cursor position, relative to the sender button
         if senderButton:
@@ -403,15 +402,14 @@ class MyWidget(QtWidgets.QWidget):
         folderPath = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Folder")
         if folderPath:
             self.filePath.setText(folderPath)
-            
-    @QtCore.Slot()
-    def updateCrlCheckboxes(self, path):
-        instance_management.updateCrlCheckboxes(self, path)
     
     @QtCore.Slot()
     def importCheckBoxClicked(self, state):
-        self.importCheckBoxes += state
-        self.finaliseInstanceButton.setDisabled(not state > 0)
+        if state:
+            self.importCheckBoxes += 1
+        else:
+            self.importCheckBoxes -= 1
+        self.finaliseInstanceButton.setDisabled(not self.importCheckBoxes > 0)
     
     @QtCore.Slot(str)
     def toggleEditingInstances(self, senderButton):
@@ -420,17 +418,6 @@ class MyWidget(QtWidgets.QWidget):
             senderButton.setStyleSheet("background-color: grey; color: white;")
         else:
             senderButton.setStyleSheet("")
-
-    @QtCore.Slot()
-    def importInstances(self):
-        instanceNames = []
-        for i in range(self.tescrlLayout.count()):
-            item = self.tescrlLayout.itemAt(i).widget()
-            if isinstance(item, QCheckBox):
-                if item.isChecked():
-                    instanceNames.append(item.text())
-        if len(instanceNames) > 0:
-            crlauncher.importCrlInstances(self, self.filePath.text(), instanceNames)
             
     @QtCore.Slot(str, str, str, str)
     def createInstance(self, loader, version, name, icon, autoUpdate, copyFrom: str, noWindow: bool = False):
@@ -479,7 +466,7 @@ class MyWidget(QtWidgets.QWidget):
             if not noWindow:
                 self.newInstance.close() #Closes the instance window
             
-            instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
+            instance_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
         except Exception as e:
             log(f"Failed to create instance: {e}")
             system.openErrorWindow(str(e), "Failed to Create Instance!")
@@ -507,7 +494,7 @@ class MyWidget(QtWidgets.QWidget):
                 app_info_and_update.installVersion(version) #Installs if not
             
             self.editedInstance.close() #Closes the instance window
-            instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
+            instance_management.reloadInstances(self, self.homeLayout, self.runningInstances) #Reloads the displayed instances
         except Exception as e:
             log(f"Failed to edit instance: {e}")
             system.openErrorWindow(str(e), "Failed to Edit Instance!")
@@ -527,7 +514,7 @@ class MyWidget(QtWidgets.QWidget):
                     os.rmdir(os.path.join(root, name))
             os.rmdir(instancePath)
             self.editedInstance.close()
-            instance_ui_management.reloadInstances(self, self.homeLayout, self.runningInstances)
+            instance_management.reloadInstances(self, self.homeLayout, self.runningInstances)
         
         
 def onAboutToQuit():

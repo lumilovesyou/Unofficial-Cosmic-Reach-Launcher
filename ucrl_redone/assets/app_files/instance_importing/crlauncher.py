@@ -2,6 +2,7 @@ import os
 import json
 import tempfile
 import platform
+from PySide6.QtWidgets import QCheckBox
 
 def findInstances(path: str, namesOnly: bool = False):
     if platform.system() == "Darwin":
@@ -14,7 +15,9 @@ def findInstances(path: str, namesOnly: bool = False):
                         crlInstances.append(folder)
                     else:
                         crlInstances.append(f"{path}/{folder}")
-            return(crlInstances)                  
+            return(crlInstances)
+        else:
+            return([])            
     else:
         print("Other")
         
@@ -25,21 +28,29 @@ def findInstancesFolder():
             return root
     return "~/Library/"
 
-def importCrlInstances(self, path: str, instanceNames: list):
-    instanceFiles = findInstances(path)
-    instanceData = []
-    for i in range(len(instanceFiles)):
-        if instanceFiles[i].split("instances/")[1] in instanceNames:
-            with open(f"{instanceFiles[i]}/instance.json", "r") as file:
-                instanceFile = json.loads(file.read())
-                instanceData.append({
-                    "loader": instanceFile["modLoader"],
-                    "version": instanceFile["cosmicVersion"],
-                    "name": instanceFile["name"],
-                    "icon": f"{instanceFiles[i].split("instances/")[0]}/icons/{instanceFile["iconFileName"]}",
-                    "autoUpdate": instanceFile["autoUpdateToLatest"]
-                })
-                self.createInstance(instanceData[i]["loader"], instanceData[i]["version"], instanceData[i]["name"], instanceData[i]["icon"], instanceData[i]["autoUpdate"], f"{instanceFiles[i]}/cosmic-reach", True)
+def importCrlInstances(self):
+    path = self.filePath.text()
+    instanceNames = []
+    for i in range(self.tescrlLayout.count()):
+        item = self.tescrlLayout.itemAt(i).widget()
+        if isinstance(item, QCheckBox):
+            if item.isChecked():
+                instanceNames.append(item.text())
+    if len(instanceNames) > 0:
+        instanceFiles = findInstances(path)
+        instanceData = []
+        for i in range(len(instanceFiles)):
+            if instanceFiles[i].split("instances/")[1] in instanceNames:
+                with open(f"{instanceFiles[i]}/instance.json", "r") as file:
+                    instanceFile = json.loads(file.read())
+                    instanceData.append({
+                        "loader": instanceFile["modLoader"],
+                        "version": instanceFile["cosmicVersion"],
+                        "name": instanceFile["name"],
+                        "icon": f"{instanceFiles[i].split("instances/")[0]}/icons/{instanceFile["iconFileName"]}",
+                        "autoUpdate": instanceFile["autoUpdateToLatest"]
+                    })
+                    self.createInstance(instanceData[i]["loader"], instanceData[i]["version"], instanceData[i]["name"], instanceData[i]["icon"], instanceData[i]["autoUpdate"], f"{instanceFiles[i]}/cosmic-reach", True)
           
 def importCrlInstance2(self, location):
     for root, dirs, files in os.walk(location):

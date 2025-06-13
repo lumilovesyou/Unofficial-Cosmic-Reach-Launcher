@@ -1,16 +1,18 @@
 import os
 import json
+import shutil
 import signal
 import psutil
 import threading
 import subprocess
 import random as ran
-from . import instance_management, file_management, app_info_and_update, web_interaction, system, config
-from .instance_importing import crlauncher
+from functools import partial
+from . import instance_management, file_management, app_info_and_update, web_interaction, system, config, flow_layout
+from .instance_importing import crlauncher, file
 from .logs import log, prepareLogs
 from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QPixmap, QDesktopServices
+from PySide6.QtCore import Qt, QUrl, QSize
+from PySide6.QtGui import QPixmap, QDesktopServices, QIcon
 
 def checkForVersion(version):
     file = f"meta/versions/{version}/about.json"
@@ -246,7 +248,7 @@ def importInstance(self):
     
     self.filePath = QLineEdit("Placeholder Path")
     self.filePath.setText(instancesFolder)
-    self.filePath.textChanged.connect(self.updateCrlCheckboxes)
+    self.filePath.textChanged.connect(lambda: updateCheckBoxes(self, crlauncher.findInstances(self.filePath.text(), True), self.tescrlLayout))
     
     filePathSelect = QPushButton("Select Path")
     filePathSelect.clicked.connect(self.selectPath)
@@ -256,7 +258,7 @@ def importInstance(self):
     
     self.importInstanceTESCRL.setWidget(contentWidget)
     
-    updateCrlCheckboxes(self, instancesFolder)
+    updateCheckBoxes(self, crlauncher.findInstances(self.filePath.text(), True), self.tescrlLayout)
     self.tescrlLayout.addStretch()
     ##
     
@@ -268,7 +270,7 @@ def importInstance(self):
     #Import button
     self.finaliseInstanceButton = QPushButton("Import Selected")
     self.finaliseInstanceButton.setDisabled(True)
-    self.finaliseInstanceButton.clicked.connect(self.importInstances)
+    self.finaliseInstanceButton.clicked.connect(lambda: crlauncher.importInstances(self))
     layout.addWidget(self.finaliseInstanceButton)
 
     #Setting Layout
@@ -276,7 +278,55 @@ def importInstance(self):
     centralWidget.setLayout(layout)
     self.importInstance.setCentralWidget(centralWidget)
     self.importInstance.show()
+
+def exportInstance(self, instanceName):
+    #Checking if instance folder exists
+    file_management.checkDirValidity("/instances")
+
+    #Defining Window
+    self.importInstance = QMainWindow()
+    self.importInstance.setWindowTitle("Export Instances")
+    self.importInstance.setMinimumSize(530, 300)
+    self.importInstance.setMaximumSize(530, 300)
     
+    #Layout
+    layout = QVBoxLayout()
+    layout.setAlignment(Qt.AlignTop)
+    #layout.setWidgetResizable(True)
+    
+    ##File Select Layout
+    self.fileLayout = QVBoxLayout()
+    
+    self.filePath = QLineEdit("Placeholder Path")
+    self.filePath.setText(f"{os.getcwd()}/instances/")
+    self.filePath.textChanged.connect(lambda: updateCheckBoxes(self, file.findInstances(self.filePath.text(), True), self.fileLayout))
+    
+    filePathSelect = QPushButton("Select Path")
+    filePathSelect.clicked.connect(self.selectPath)
+    
+    self.fileLayout.addWidget(self.filePath)
+    self.fileLayout.addWidget(filePathSelect)
+    self.fileLayout.addStretch()
+    
+    layout.addLayout(self.fileLayout)
+    
+    #Import button
+    self.finaliseInstanceButton = QPushButton("Export Selected")
+    self.finaliseInstanceButton.setDisabled(True)
+    self.finaliseInstanceButton.clicked.connect(lambda: file.exportInstances(self, os.path.expanduser("~/Downloads")))
+    layout.addWidget(self.finaliseInstanceButton)
+    
+    updateCheckBoxes(self, file.findInstances(self.filePath.text(), True), self.fileLayout)
+
+    #Setting Layout
+    centralWidget = QWidget()
+    centralWidget.setLayout(layout)
+    self.importInstance.setCentralWidget(centralWidget)
+    self.importInstance.show()
+
+def saveInstanceAsFile(self, instanceName: str, exportPath: str = "Null"):
+    shutil.make_archive(f"{exportPath}/{instanceName}", "ucrl", f"instances/{instanceName}")
+
 def updateCrlCheckboxes(self, path):
         for i in reversed(range(self.tescrlLayout.count())):
             item = self.tescrlLayout.itemAt(i)
@@ -293,16 +343,41 @@ def updateCrlCheckboxes(self, path):
             crlauncherInstances = crlauncher.findInstances(path, True)
             crlauncherInstances = [] if crlauncherInstances == None else crlauncherInstances
             if len(crlauncherInstances) < 1:
-                self.tescrlEmpty = QLabel("No Instances Found")
-                self.tescrlLayout.insertWidget(self.tescrlLayout.count(), self.tescrlEmpty)
+                self.noInstances = QLabel("No Instances Found")
+                self.tescrlLayout.insertWidget(self.tescrlLayout.count(), self.noInstances)
             else:
                 for i in range(len(crlauncherInstances)):
                     checkBox = QCheckBox(crlauncherInstances[i])
                     checkBox.clicked.connect(self.importCheckBoxClicked)
                     self.tescrlLayout.insertWidget(self.tescrlLayout.count(), checkBox)
         else:
-            self.tescrlEmpty = QLabel("No Instances Found")
-            self.tescrlLayout.insertWidget(self.tescrlLayout.count(), self.tescrlEmpty)
+            self.noInstances = QLabel("No Instances Found")
+            self.tescrlLayout.insertWidget(self.tescrlLayout.count(), self.noInstances)
+
+def updateCheckBoxes(self, instanceList, layout):
+    for i in reversed(range(layout.count())):
+            item = layout.itemAt(i)
+
+            if item.widget() and isinstance(item.widget(), (QCheckBox, QLabel)):
+                checkbox = item.widget()
+                layout.removeWidget(checkbox)
+                checkbox.deleteLater()
+
+            elif item.spacerItem():
+                layout.removeItem(item)
+                
+    if len(instanceList) > 0:
+        if len(instanceList) < 1:
+            self.noInstances = QLabel("No Instances Found")
+            layout.insertWidget(layout.count(), self.noInstances)
+        else:
+            for i in range(len(instanceList)):
+                checkBox = QCheckBox(instanceList[i])
+                checkBox.clicked.connect(self.importCheckBoxClicked)
+                layout.insertWidget(layout.count(), checkBox)
+    else:
+        self.noInstances = QLabel("No Instances Found")
+        layout.insertWidget(layout.count(), self.noInstances)
     
 def editInstance(self, instancePath):
     #Checking if instance's folder exists
@@ -363,7 +438,6 @@ def editInstance(self, instancePath):
     fill = []
     latestVersion = web_interaction.getFile("CRModders", "CosmicArchive", "latest_version.txt")
     if latestVersion:
-        print(latestVersion)
         latestVersion = latestVersion.split(" ")[0]
     
     #app_info_and_update.downloadAndProcessVersions()
@@ -410,3 +484,83 @@ def editInstance(self, instancePath):
     self.editedInstance.setCentralWidget(centralWidget)
     centralWidget.setContentsMargins(10, 10, 10, 10)
     self.editedInstance.show()
+    
+def reloadInstances(self, homeLayout, runningInstances):
+        log("Reloading instances!")
+        #Updates instances displayed
+        #Deletes current instance buttons
+        if homeLayout is not None:
+            while homeLayout.count() > 0:
+                item = homeLayout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+        #Defines button
+        buttonWidget = QWidget()
+        buttonLayout = flow_layout.FlowLayout(buttonWidget)
+        #List read from
+        list = []
+        #The actual reading of instances
+        instancesFolderPath = "instances"
+        ##Checking if path exists
+        file_management.checkDirValidity(instancesFolderPath)
+        ##
+        #Checks if the instances path exists and if it's a directory
+        if os.path.exists(instancesFolderPath) and os.path.isdir(instancesFolderPath):
+            #Loops for each file in that path
+            for instancePath in os.listdir(instancesFolderPath):
+                instancePath = os.path.join(instancesFolderPath, instancePath)
+                #Checks if the instance is a folder and isn't macOS's DS_Store file
+                if os.path.isdir(instancePath) and instancePath != ".DS_Store":
+                    #Makes the instance a button
+                    instanceButton = QToolButton()
+                    aboutLocation = f"{instancePath}/about.json"
+                    if file_management.checkForFile(aboutLocation):
+                        with open(aboutLocation) as file:
+                            openedFile = json.loads(file.read())
+                            if "name" in openedFile:
+                                instanceName = openedFile["name"]
+                            else:
+                                instanceName = instancePath.split("/")[1]
+                    else:
+                        instanceName = instancePath.split("/")[1]
+                        
+                    instanceButton.setText(instanceName)
+                    #Sets the icon
+                    iconPath = os.path.join(instancePath, "icon.png")
+                    if os.path.isfile(iconPath):
+                        icon = QIcon(iconPath)
+                    else:
+                        icon = QIcon("assets/app_icons/ucrl_icon.png")
+                    instanceButton.setIcon(icon)
+                    instanceButton.setFixedSize(QSize(100, 100))
+                    instanceButton.setIconSize(QSize(48, 48))
+                    instanceButton.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+                    instanceButton.setProperty("filepath", instancePath.split("/")[1])
+                    #Checks if instance is running
+                    instanceButton.setStyleSheet("border-radius: 10px;")
+                    if instancePath in runningInstances:
+                        instanceButton.setStyleSheet("background-color: #9043437d;")
+                    
+                    #Button clicked events
+                    instanceButton.clicked.connect(partial(instance_management.launchInstance, self, instancePath.split("/")[1], instanceButton))
+                    instanceButton.setContextMenuPolicy(Qt.CustomContextMenu)
+                    instanceButton.customContextMenuRequested.connect(self.showInstanceContextMenu)
+                    
+                    # Add button to layout
+                    buttonLayout.addWidget(instanceButton)
+        homeLayout.addWidget(buttonWidget)
+        #Adds "Add Instance" button
+        addInstance = QPushButton("Add Instance")
+        addInstance.clicked.connect(self.callAddInstance)
+        homeLayout.addWidget(addInstance)
+        #Adds "Import Instances" button
+        importInstance = QPushButton("Import Instances")
+        importInstance.clicked.connect(self.importInstancesWindow)
+        homeLayout.addWidget(importInstance)
+        #Adds "Edit Instances" button
+        self.editInstancesButton = QPushButton("Edit Instances")
+        self.editInstancesButton.clicked.connect(lambda: self.toggleEditingInstances(self.editInstancesButton))
+        homeLayout.addWidget(self.editInstancesButton)
+
+        homeLayout.addStretch()
